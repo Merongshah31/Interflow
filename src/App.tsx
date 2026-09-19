@@ -17,6 +17,17 @@ import { API_BASE_URL } from './config';
 const INITIAL_INTERNSHIPS: Internship[] = [];
 
 export const App: React.FC = () => {
+  // User Profile & Authentication Gate
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    try {
+      const saved = sessionStorage.getItem('internflow_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
+
   const [activeTab, setActiveTab] = useState<NavTabType>('pipeline');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [showHITLModal, setShowHITLModal] = useState<boolean>(false);
@@ -53,10 +64,16 @@ export const App: React.FC = () => {
   const [isRetrying, setIsRetrying] = useState<boolean>(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date>(new Date());
 
-  // Synchronize live pipeline with FastAPI backend
+  // Synchronize live pipeline with FastAPI backend (per-user isolated status)
+  const currentUserId = currentUser?.user_id;
   const fetchLivePipeline = React.useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/internships`);
+      const url = currentUserId 
+        ? `${API_BASE_URL}/api/internships?user_id=${encodeURIComponent(currentUserId)}`
+        : `${API_BASE_URL}/api/internships`;
+      const res = await fetch(url, {
+        headers: currentUserId ? { 'X-User-Id': currentUserId } : {}
+      });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -104,7 +121,7 @@ export const App: React.FC = () => {
     } catch {
       // Backend unavailable, preserve offline dataset
     }
-  }, []);
+  }, [currentUserId]);
 
   useEffect(() => {
     let active = true;
@@ -129,32 +146,30 @@ export const App: React.FC = () => {
     // Optimistic UI update
     setInternships(prev => prev.map(item => item.id === id ? { ...item, status: newStatus } : item));
 
-    // Persist to FastAPI backend
+    // Persist to FastAPI backend with isolated user_id
     fetch(`${API_BASE_URL}/api/internships/${id}/status`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: newStatus })
+      headers: { 
+        'Content-Type': 'application/json',
+        ...(currentUser?.user_id ? { 'X-User-Id': currentUser.user_id } : {})
+      },
+      body: JSON.stringify({ 
+        status: newStatus,
+        user_id: currentUser?.user_id 
+      })
     }).catch(() => {
       // Offline fallback
     });
   };
 
-  // User Profile & Authentication Gate
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    try {
-      const saved = sessionStorage.getItem('internflow_user');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
-  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
 
   // Sync profile details with backend
   const userEmail = currentUser?.email;
   useEffect(() => {
     if (!userEmail) return;
-    fetch(`${API_BASE_URL}/api/profile/me`)
+    fetch(`${API_BASE_URL}/api/profile/me`, {
+      headers: currentUser?.user_id ? { 'X-User-Id': currentUser.user_id } : {}
+    })
       .then(res => (res.ok ? res.json() : null))
       .then(data => {
         if (data) {
@@ -176,7 +191,7 @@ export const App: React.FC = () => {
         }
       })
       .catch(() => {});
-  }, [userEmail]);
+  }, [userEmail, currentUser?.user_id]);
 
   const handleSignOut = () => {
     sessionStorage.removeItem('internflow_user');

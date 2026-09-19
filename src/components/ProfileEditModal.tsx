@@ -53,7 +53,10 @@ export const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
     try {
       await fetch(`${API_BASE_URL}/api/profile/me`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(user.user_id ? { 'X-User-Id': user.user_id } : {})
+        },
         body: JSON.stringify(updatedProfile)
       });
       sessionStorage.setItem('internflow_user', JSON.stringify(updatedProfile));
