@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Bell, ShieldAlert, PanelLeft, PanelLeftClose } from 'lucide-react';
 import { GoogleConnectButton } from './GoogleConnectButton';
+import { NotificationDropdown } from './NotificationDropdown';
 import type { UserProfile } from './AuthGate';
 
 interface HeaderProps {
@@ -24,6 +25,19 @@ export const Header: React.FC<HeaderProps> = ({
   user,
   onOpenProfileModal
 }) => {
+  const [isNotificationOpen, setIsNotificationOpen] = useState<boolean>(false);
+  const [hasUnread, setHasUnread] = useState<boolean>(() => {
+    return localStorage.getItem('internflow_last_read_v2') !== 'true';
+  });
+
+  const handleToggleNotifications = () => {
+    setIsNotificationOpen(prev => !prev);
+    if (hasUnread) {
+      setHasUnread(false);
+      localStorage.setItem('internflow_last_read_v2', 'true');
+    }
+  };
+
   return (
     <header className="top-header">
       {/* Sidebar Toggle & Breadcrumb */}
@@ -87,28 +101,43 @@ export const Header: React.FC<HeaderProps> = ({
         )}
 
         {/* Minimalist Notification Bell */}
-        <div style={{
-          position: 'relative',
-          cursor: 'pointer',
-          width: '30px',
-          height: '30px',
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'rgba(255, 255, 255, 0.04)',
-          border: '1px solid rgba(255, 255, 255, 0.08)'
-        }}>
-          <Bell size={14} color="#86868b" />
-          <span style={{
-            position: 'absolute',
-            top: '7px',
-            right: '7px',
-            width: '5px',
-            height: '5px',
-            borderRadius: '50%',
-            background: '#ff453a'
-          }} />
+        <div style={{ position: 'relative' }}>
+          <div
+            onClick={handleToggleNotifications}
+            style={{
+              cursor: 'pointer',
+              width: '30px',
+              height: '30px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: isNotificationOpen ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid ' + (isNotificationOpen ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.08)'),
+              transition: 'all 0.15s ease'
+            }}
+            title="Notifications, updates & feedback"
+          >
+            <Bell size={14} color={isNotificationOpen ? '#f5f5f7' : '#86868b'} />
+            {hasUnread && (
+              <span style={{
+                position: 'absolute',
+                top: '6px',
+                right: '6px',
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: '#ff453a',
+                boxShadow: '0 0 6px rgba(255, 69, 58, 0.8)'
+              }} />
+            )}
+          </div>
+
+          {/* Interactive Notification Dropdown Menu */}
+          <NotificationDropdown
+            isOpen={isNotificationOpen}
+            onClose={() => setIsNotificationOpen(false)}
+          />
         </div>
 
         {/* Dynamic User Profile Pill */}
