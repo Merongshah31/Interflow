@@ -1,0 +1,480 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ==========================================================================
+   Apple Human Interface Guidelines (HIG) Design System — Dark Mode
+   Principles: Simplicity, Clarity, Deference, and Depth
+   ========================================================================== */
+
+:root {
+  /* System Background Surfaces */
+  --bg-app: #000000;
+  --bg-sidebar: rgba(18, 18, 20, 0.85);
+  --bg-header: rgba(18, 18, 20, 0.75);
+  --bg-card: rgba(26, 26, 28, 0.65);
+  --bg-card-elevated: #1c1c1e;
+  --bg-table-header: rgba(22, 22, 24, 0.85);
+  --bg-table-hover: rgba(255, 255, 255, 0.035);
+
+  /* Apple System Borders */
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-subtle: rgba(255, 255, 255, 0.04);
+  --border-highlight: rgba(255, 255, 255, 0.16);
+
+  /* Apple System Typography Colors */
+  --text-primary: #f5f5f7;
+  --text-secondary: #86868b;
+  --text-muted: #6e6e73;
+
+  /* Apple System Accent Colors */
+  --accent-blue: #0071e3;
+  --accent-blue-tint: rgba(0, 113, 227, 0.15);
+  --accent-indigo: #5e5ce6;
+  --accent-cyan: #64d2ff;
+  --accent-emerald: #30d158;
+  --accent-emerald-tint: rgba(48, 209, 88, 0.12);
+  --accent-amber: #ff9f0a;
+  --accent-amber-tint: rgba(255, 159, 10, 0.12);
+  --accent-rose: #ff453a;
+  --accent-rose-tint: rgba(255, 69, 58, 0.12);
+
+  /* Apple Typography Stack */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+}
+
+/* ==========================================================================
+   macOS Window Layout Grid
+   ========================================================================== */
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--bg-app);
+}
+
+/* ==========================================================================
+   macOS Sidebar Navigation
+   ========================================================================== */
+.sidebar {
+  width: 240px;
+  min-width: 240px;
+  max-width: 240px;
+  background-color: var(--bg-sidebar);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  user-select: none;
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.18s ease;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.sidebar.collapsed {
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-right: none !important;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.btn-sidebar-toggle:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+}
+
+.sidebar-logo-area {
+  padding: 18px 18px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-nav {
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.sidebar-item.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   Main Content Workspace & Unified Toolbar Header
+   ========================================================================== */
+.main-wrapper {
+  flex: 1 1 0%;
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background-color: var(--bg-app);
+}
+
+.top-header {
+  height: 56px;
+  background-color: var(--bg-header);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 100;
+}
+
+.content-body {
+  flex: 1;
+  padding: 24px 28px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ==========================================================================
+   Apple Frosted Glass Panel
+   ========================================================================== */
+.glass-panel {
+  background: var(--bg-card);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+}
+
+/* ==========================================================================
+   Apple Minimalist Status Indicators
+   ========================================================================== */
+.status-pill {
+  padding: 4px 10px;
+  border-radius: 980px;
+  font-size: 0.74rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  flex-shrink: 0;
+  max-width: none;
+  overflow: visible;
+}
+
+.status-not-started {
+  background: rgba(255, 255, 255, 0.06);
+  color: #86868b;
+}
+
+.status-applied {
+  background: rgba(10, 132, 255, 0.12);
+  color: #2997ff;
+}
+
+.status-interviewing {
+  background: rgba(255, 159, 10, 0.12);
+  color: #ff9f0a;
+}
+
+.status-offer {
+  background: rgba(48, 209, 88, 0.12);
+  color: #30d158;
+}
+
+.status-rejected {
+  background: rgba(255, 69, 58, 0.12);
+  color: #ff453a;
+}
+
+/* ==========================================================================
+   Apple Buttons (Pill Aesthetics)
+   ========================================================================== */
+
+/* Apple Signature Primary White Pill */
+.btn-primary {
+  background: #ffffff;
+  color: #000000;
+  border: none;
+  border-radius: 980px;
+  padding: 7px 16px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+.btn-primary:hover {
+  background: #e5e5e7;
+  transform: translateY(-0.5px);
+}
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+/* Apple Secondary Frosted Pill */
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  border-radius: 980px;
+  padding: 7px 16px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.13);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+/* Apple System Blue Pill */
+.btn-blue {
+  background: #0071e3;
+  color: #ffffff;
+  border: none;
+  border-radius: 980px;
+  padding: 7px 16px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+.btn-blue:hover {
+  background: #0077ed;
+}
+
+/* Apple System Green Pill */
+.btn-green {
+  background: #30d158;
+  color: #000000;
+  border: none;
+  border-radius: 980px;
+  padding: 7px 16px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+.btn-green:hover {
+  background: #34c759;
+}
+
+/* Apple System Red Pill */
+.btn-danger {
+  background: rgba(255, 69, 58, 0.15);
+  border: 1px solid rgba(255, 69, 58, 0.3);
+  color: #ff453a;
+  border-radius: 980px;
+  padding: 7px 16px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+.btn-danger:hover {
+  background: rgba(255, 69, 58, 0.25);
+}
+
+/* Table Row Action Pill */
+.btn-action-outline {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e5e5e7;
+  border-radius: 980px;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-action-outline:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   Apple Badges & Micro-elements
+   ========================================================================== */
+.badge {
+  padding: 2px 8px;
+  border-radius: 980px;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.badge-indigo {
+  background: rgba(94, 92, 230, 0.15);
+  color: #a5a4ff;
+}
+.badge-cyan {
+  background: rgba(100, 210, 255, 0.15);
+  color: #64d2ff;
+}
+
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  background-color: var(--accent-emerald);
+  border-radius: 50%;
+  animation: pulse 2.5s infinite ease-in-out;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.spin-anim {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   Apple Sleek Scrollbars
+   ========================================================================== */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 980px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ==========================================================================
+   Apple Dark Mode Leaflet Tooltip & Popup
+   ========================================================================== */
+.apple-map-tooltip {
+  background: rgba(24, 24, 27, 0.96) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.7) !important;
+  color: #f5f5f7 !important;
+  padding: 0 !important;
+  pointer-events: none !important;
+  z-index: 1000 !important;
+}
+
+.apple-map-tooltip.leaflet-tooltip-top::before {
+  border-top-color: rgba(24, 24, 27, 0.96) !important;
+}
+.apple-map-tooltip.leaflet-tooltip-bottom::before {
+  border-bottom-color: rgba(24, 24, 27, 0.96) !important;
+}
+
+.apple-map-popup .leaflet-popup-content-wrapper {
+  background: rgba(24, 24, 27, 0.96) !important;
+  backdrop-filter: blur(28px) !important;
+  -webkit-backdrop-filter: blur(28px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.85) !important;
+  color: #f5f5f7 !important;
+  padding: 4px !important;
+}
+
+.apple-map-popup .leaflet-popup-tip {
+  background: rgba(24, 24, 27, 0.96) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-top: none !important;
+  border-left: none !important;
+}
+
+.apple-map-popup .leaflet-popup-close-button {
+  color: #86868b !important;
+  padding: 6px 8px !important;
+}
+.apple-map-popup .leaflet-popup-close-button:hover {
+  color: #f5f5f7 !important;
+}
+
+.custom-map-marker {
+  background: transparent !important;
+  border: none !important;
+}
