@@ -6,7 +6,6 @@ import { PipelineTable } from './components/PipelineTable';
 import type { Internship } from './components/PipelineTable';
 
 import { CompanyMap } from './components/CompanyMap';
-import { AIChatbotWidget } from './components/AIChatbotWidget';
 import { HITLGatewayModal } from './components/HITLGatewayModal';
 import type { PendingAction } from './components/HITLGatewayModal';
 import { AuthGate } from './components/AuthGate';
@@ -423,9 +422,6 @@ export const App: React.FC = () => {
               lastSyncedAt={lastSyncedAt}
             />
           )}
-
-          {/* Interactive AI Career Coach Chatbot Widget */}
-          <AIChatbotWidget />
 
           {/* Human-in-the-Loop Execution Modal Overlay */}
           {showHITLModal && (
