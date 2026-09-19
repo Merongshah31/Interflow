@@ -163,23 +163,26 @@ export const App: React.FC = () => {
   };
 
 
-  // Sync profile details with backend
-  const userEmail = currentUser?.email;
+  // Sync profile details with backend (isolated by current user ID)
   useEffect(() => {
-    if (!userEmail) return;
-    fetch(`${API_BASE_URL}/api/profile/me`, {
-      headers: currentUser?.user_id ? { 'X-User-Id': currentUser.user_id } : {}
+    if (!currentUserId) return;
+    fetch(`${API_BASE_URL}/api/profile/me?user_id=${encodeURIComponent(currentUserId)}`, {
+      headers: { 'X-User-Id': currentUserId }
     })
       .then(res => (res.ok ? res.json() : null))
       .then(data => {
-        if (data) {
+        if (data && (!data.user_id || data.user_id === currentUserId)) {
           const prof = data.profile || data;
           setCurrentUser(prev => {
-            if (!prev) return null;
+            if (!prev || prev.user_id !== currentUserId) return prev;
+            // Guard against cross-contamination: don't overwrite if email doesn't match
+            if (prof.email && prev.email && prof.email.toLowerCase() !== prev.email.toLowerCase()) {
+              console.warn('Ignoring profile update with mismatched email:', prof.email, 'vs', prev.email);
+              return prev;
+            }
             const merged: UserProfile = {
               ...prev,
               name: prof.name || prev.name,
-              email: prof.email || prev.email,
               headline: prof.headline || prev.headline,
               avatar_url: prof.avatar_url || prev.avatar_url,
               skills: prof.skills && prof.skills.length > 0 ? prof.skills : prev.skills,
@@ -191,13 +194,15 @@ export const App: React.FC = () => {
         }
       })
       .catch(() => {});
-  }, [userEmail, currentUser?.user_id]);
+  }, [currentUserId]);
 
   const handleSignOut = () => {
     sessionStorage.removeItem('internflow_user');
+    localStorage.removeItem('internflow_user');
     setCurrentUser(null);
     setShowProfileModal(false);
     setGoogleStatus({ connected: false, email: '' });
+    setInternships([]);
   };
 
   const handleSaveProfile = (updated: UserProfile) => {
@@ -315,15 +320,19 @@ export const App: React.FC = () => {
 
   const handleGoogleStatusChange = (st: any) => {
     setGoogleStatus({ connected: !!st.connected, email: st.email || '' });
-    if (st.connected) {
+    if (st.connected && st.email) {
       setCurrentUser(prev => {
         if (!prev) return null;
+        // Strict guard: NEVER overwrite current user identity if email from status doesn't match!
+        if (prev.email && st.email.toLowerCase() !== prev.email.toLowerCase()) {
+          console.warn('Ignoring Google status from different account:', st.email, 'vs current:', prev.email);
+          return prev;
+        }
         const updated: UserProfile = {
           ...prev,
-          email: st.email || prev.email,
-          name: st.name || prev.name,
+          is_google_connected: true,
           avatar_url: st.avatar_url || prev.avatar_url,
-          headline: st.headline || prev.headline
+          name: prev.name || st.name
         };
         sessionStorage.setItem('internflow_user', JSON.stringify(updated));
         return updated;

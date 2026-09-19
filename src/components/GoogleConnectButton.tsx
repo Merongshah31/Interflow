@@ -11,24 +11,32 @@ interface GoogleAuthStatus {
 
 interface GoogleConnectButtonProps {
   onStatusChange?: (status: GoogleAuthStatus) => void;
+  userId?: string;
+  userEmail?: string;
 }
 
-export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({ onStatusChange }) => {
+export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({ onStatusChange, userId, userEmail }) => {
   const [status, setStatus] = useState<GoogleAuthStatus>({
     configured: false,
     connected: false,
     email: '',
     scopes: []
   });
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(() => !!userId);
   const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
   const [showConfigModal, setShowConfigModal] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const fetchStatus = useCallback(async () => {
+    if (!userId) {
+      setIsLoading(false);
+      return;
+    }
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/google/status`);
+      const res = await fetch(`${API_BASE_URL}/api/auth/google/status?user_id=${encodeURIComponent(userId)}`, {
+        headers: { 'X-User-Id': userId }
+      });
       if (res.ok) {
         const data: GoogleAuthStatus = await res.json();
         setStatus(data);
@@ -39,11 +47,14 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({ onStat
     } finally {
       setIsLoading(false);
     }
-  }, [onStatusChange]);
+  }, [userId, onStatusChange]);
 
   useEffect(() => {
+    if (!userId) return;
     let mounted = true;
-    fetch(`${API_BASE_URL}/api/auth/google/status`)
+    fetch(`${API_BASE_URL}/api/auth/google/status?user_id=${encodeURIComponent(userId)}`, {
+      headers: { 'X-User-Id': userId }
+    })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (mounted && data) {
@@ -72,7 +83,7 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({ onStat
       mounted = false;
       window.removeEventListener('message', handleOAuthMessage);
     };
-  }, [fetchStatus, onStatusChange]);
+  }, [userId, fetchStatus, onStatusChange]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -123,8 +134,15 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({ onStat
   const handleDisconnect = async () => {
     setIsLoading(true);
     try {
-      await fetch(`${API_BASE_URL}/api/auth/google/disconnect`, { method: 'POST' });
-      await fetchStatus();
+      const url = userId 
+        ? `${API_BASE_URL}/api/auth/google/disconnect?user_id=${encodeURIComponent(userId)}`
+        : `${API_BASE_URL}/api/auth/google/disconnect`;
+      await fetch(url, { 
+        method: 'POST',
+        headers: userId ? { 'X-User-Id': userId } : {}
+      });
+      setStatus(prev => ({ ...prev, connected: false }));
+      if (onStatusChange) onStatusChange({ ...status, connected: false });
       setIsDropdownOpen(false);
     } catch {
       setErrorMsg('Failed to disconnect Google account.');
@@ -132,6 +150,8 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({ onStat
       setIsLoading(false);
     }
   };
+
+  const activeEmail = userEmail || status.email || '';
 
   return (
     <div style={{ position: 'relative' }} ref={dropdownRef}>
@@ -177,7 +197,7 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({ onStat
             transition: 'all 0.18s ease',
             boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
           }}
-          title={`Connected as ${status.email}`}
+          title={`Connected as ${activeEmail}`}
         >
           {/* Google G Logo */}
           <svg width="13" height="13" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
@@ -222,7 +242,7 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({ onStat
             color: '#f5f5f7',
             fontWeight: 500
           }}>
-            {status.email.split('@')[0]}
+            {activeEmail.split('@')[0]}
           </span>
           <ChevronDown
             size={12}
@@ -334,7 +354,7 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({ onStat
               color: '#ffffff',
               flexShrink: 0
             }}>
-              {status.email ? status.email[0].toUpperCase() : 'G'}
+              {activeEmail ? activeEmail[0].toUpperCase() : 'G'}
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
               <span style={{ fontSize: '0.64rem', color: '#86868b', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -347,8 +367,8 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({ onStat
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap'
-              }} title={status.email}>
-                {status.email}
+              }} title={activeEmail}>
+                {activeEmail}
               </div>
             </div>
           </div>

@@ -74,7 +74,11 @@ export const Header: React.FC<HeaderProps> = ({
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
         {/* Google Workspace Connection Pill */}
-        <GoogleConnectButton onStatusChange={onGoogleStatusChange} />
+        <GoogleConnectButton 
+          userId={user?.user_id} 
+          userEmail={user?.email} 
+          onStatusChange={onGoogleStatusChange} 
+        />
 
         {/* Apple-style Pending HITL Pill */}
         {pendingHITLCount > 0 && (

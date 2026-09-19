@@ -26,10 +26,11 @@ export const AuthGate: React.FC<AuthGateProps> = ({ onLoginSuccess }) => {
     const handleMessage = (event: MessageEvent) => {
       if (!event.data) return;
       if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
+        const email = event.data.email || '';
         const user: UserProfile = event.data.user || {
-          user_id: 'student-001',
-          name: event.data.email ? event.data.email.split('@')[0] : 'Student',
-          email: event.data.email || 'student@university.edu.my',
+          user_id: `usr-${btoa(email || 'student').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8)}`,
+          name: email ? email.split('@')[0] : 'Student',
+          email: email,
           avatar_url: '',
           headline: 'Software Engineering'
         };
