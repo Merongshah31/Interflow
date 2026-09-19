@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Save, LogOut, Check, Plus, Tag, FileText, Briefcase, User, ShieldCheck } from 'lucide-react';
 import type { UserProfile } from './AuthGate';
+import { API_BASE_URL } from '../config';
 
 interface ProfileEditModalProps {
   user: UserProfile;
@@ -50,7 +51,7 @@ export const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
     };
 
     try {
-      await fetch('http://localhost:8000/api/profile/me', {
+      await fetch(`${API_BASE_URL}/api/profile/me`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedProfile)

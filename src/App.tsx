@@ -12,6 +12,7 @@ import type { PendingAction } from './components/HITLGatewayModal';
 import { AuthGate } from './components/AuthGate';
 import type { UserProfile } from './components/AuthGate';
 import { ProfileEditModal } from './components/ProfileEditModal';
+import { API_BASE_URL } from './config';
 
 const INITIAL_INTERNSHIPS: Internship[] = [];
 
@@ -55,7 +56,7 @@ export const App: React.FC = () => {
   // Synchronize live pipeline with FastAPI backend
   const fetchLivePipeline = React.useCallback(async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/internships');
+      const res = await fetch(`${API_BASE_URL}/api/internships`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -129,7 +130,7 @@ export const App: React.FC = () => {
     setInternships(prev => prev.map(item => item.id === id ? { ...item, status: newStatus } : item));
 
     // Persist to FastAPI backend
-    fetch(`http://localhost:8000/api/internships/${id}/status`, {
+    fetch(`${API_BASE_URL}/api/internships/${id}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: newStatus })
@@ -153,7 +154,7 @@ export const App: React.FC = () => {
   const userEmail = currentUser?.email;
   useEffect(() => {
     if (!userEmail) return;
-    fetch('http://localhost:8000/api/profile/me')
+    fetch(`${API_BASE_URL}/api/profile/me`)
       .then(res => (res.ok ? res.json() : null))
       .then(data => {
         if (data) {
@@ -218,7 +219,7 @@ export const App: React.FC = () => {
 
     // 3. Persist to backend
     try {
-      await fetch(`http://localhost:8000/api/internships/${listingId}/email`, {
+      await fetch(`${API_BASE_URL}/api/internships/${listingId}/email`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contact_email: newEmail })
@@ -251,7 +252,7 @@ export const App: React.FC = () => {
   const handleAddListing = async (newListing: Internship) => {
     setInternships([newListing, ...internships]);
     try {
-      await fetch('http://localhost:8000/api/internships', {
+      await fetch(`${API_BASE_URL}/api/internships`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -317,7 +318,7 @@ export const App: React.FC = () => {
 
   const handleApproveHITL = async (actionId: string, options?: { delivery_mode?: 'direct' | 'draft'; body?: string }) => {
     try {
-      await fetch(`http://localhost:8000/api/hitl/approve/${actionId}`, {
+      await fetch(`${API_BASE_URL}/api/hitl/approve/${actionId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(options || {})
@@ -330,7 +331,7 @@ export const App: React.FC = () => {
 
   const handleRejectHITL = async (actionId: string) => {
     try {
-      await fetch(`http://localhost:8000/api/hitl/reject/${actionId}`, {
+      await fetch(`${API_BASE_URL}/api/hitl/reject/${actionId}`, {
         method: 'POST'
       });
     } catch (e) {

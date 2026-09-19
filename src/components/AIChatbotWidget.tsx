@@ -5,6 +5,7 @@ import {
   X, 
   Sparkles
 } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 interface Message {
   id: string;
@@ -49,7 +50,7 @@ export const AIChatbotWidget: React.FC<AIChatbotWidgetProps> = ({ externalPrompt
 
     // Query live Career Coach endpoint powered by Google Gemini API
     try {
-      const response = await fetch('http://localhost:8000/api/coach/chat', {
+      const response = await fetch(`${API_BASE_URL}/api/coach/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query })

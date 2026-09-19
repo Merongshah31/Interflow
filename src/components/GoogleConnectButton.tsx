@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { LogOut, AlertCircle, Loader2, ChevronDown, Mail, Calendar } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 interface GoogleAuthStatus {
   configured: boolean;
@@ -27,7 +28,7 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({ onStat
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/auth/google/status');
+      const res = await fetch(`${API_BASE_URL}/api/auth/google/status`);
       if (res.ok) {
         const data: GoogleAuthStatus = await res.json();
         setStatus(data);
@@ -42,7 +43,7 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({ onStat
 
   useEffect(() => {
     let mounted = true;
-    fetch('http://localhost:8000/api/auth/google/status')
+    fetch(`${API_BASE_URL}/api/auth/google/status`)
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (mounted && data) {
@@ -88,7 +89,7 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({ onStat
     setIsLoading(true);
     setErrorMsg(null);
     try {
-      const res = await fetch('http://localhost:8000/api/auth/google/url');
+      const res = await fetch(`${API_BASE_URL}/api/auth/google/url`);
       const data = await res.json();
 
       if (!data.configured || !data.url) {
@@ -122,7 +123,7 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({ onStat
   const handleDisconnect = async () => {
     setIsLoading(true);
     try {
-      await fetch('http://localhost:8000/api/auth/google/disconnect', { method: 'POST' });
+      await fetch(`${API_BASE_URL}/api/auth/google/disconnect`, { method: 'POST' });
       await fetchStatus();
       setIsDropdownOpen(false);
     } catch {

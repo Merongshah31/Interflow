@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BrainCircuit, ShieldCheck, Mail, Calendar, Loader2, AlertCircle } from 'lucide-react';
 
+import { API_BASE_URL } from '../config';
+
 export interface UserProfile {
   user_id: string;
   name: string;
@@ -48,7 +50,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ onLoginSuccess }) => {
     setIsLoading(true);
     setErrorMsg(null);
     try {
-      const res = await fetch('http://localhost:8000/api/auth/google/url');
+      const res = await fetch(`${API_BASE_URL}/api/auth/google/url`);
       const data = await res.json();
 
       if (!data.configured || !data.url) {
