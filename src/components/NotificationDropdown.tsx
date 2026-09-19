@@ -1,17 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Sparkles, 
-  Heart, 
-  MessageSquare, 
-  ExternalLink, 
-  Upload, 
-  Check, 
-  Copy 
+import {
+  Sparkles,
+  Heart,
+  MessageSquare,
+  ExternalLink,
+  Check,
+  Copy
 } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 interface NotificationDropdownProps {
   isOpen: boolean;
   onClose: () => void;
+}
+
+interface SystemSettingsData {
+  duitnow_qr_url: string;
+  duitnow_account_name: string;
+  duitnow_account_number: string;
+  feedback_form_url: string;
+  app_version: string;
 }
 
 type TabType = 'updates' | 'donation' | 'feedback';
@@ -19,11 +27,32 @@ type TabType = 'updates' | 'donation' | 'feedback';
 export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<TabType>('updates');
   const [copiedAccount, setCopiedAccount] = useState<boolean>(false);
-  const [customQrImage, setCustomQrImage] = useState<string>(() => {
-    return localStorage.getItem('internflow_custom_qr') || '/duitnow-qr.svg';
+  const [settings, setSettings] = useState<SystemSettingsData>({
+    duitnow_qr_url: '/duitnow-qr.svg',
+    duitnow_account_name: 'InternFlow Community Fund',
+    duitnow_account_number: 'internflow-fund@duitnow',
+    feedback_form_url: 'https://forms.gle/sampleGoogleFormInternFlow',
+    app_version: 'v2.0.0'
   });
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Fetch live settings configured by Admin in backend
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/settings`)
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (data) {
+          setSettings({
+            duitnow_qr_url: data.duitnow_qr_url || '/duitnow-qr.svg',
+            duitnow_account_name: data.duitnow_account_name || 'InternFlow Community Fund',
+            duitnow_account_number: data.duitnow_account_number || 'internflow-fund@duitnow',
+            feedback_form_url: data.feedback_form_url || 'https://forms.gle/sampleGoogleFormInternFlow',
+            app_version: data.app_version || 'v2.0.0'
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Close when clicking outside
   useEffect(() => {
@@ -44,24 +73,6 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOp
     navigator.clipboard.writeText(text);
     setCopiedAccount(true);
     setTimeout(() => setCopiedAccount(false), 2000);
-  };
-
-  const handleQrUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          setCustomQrImage(reader.result);
-          try {
-            localStorage.setItem('internflow_custom_qr', reader.result);
-          } catch {
-            // storage quota limit fallback
-          }
-        }
-      };
-      reader.readAsDataURL(file);
-    }
   };
 
   if (!isOpen) return null;
@@ -106,7 +117,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOp
               color: '#30d158',
               border: '1px solid rgba(48, 209, 88, 0.25)'
             }}>
-              v2.0.0
+              {settings.app_version}
             </span>
           </div>
         </div>
@@ -209,7 +220,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOp
               <p style={{ fontSize: '0.76rem', color: '#86868b', margin: '0 0 10px 0', lineHeight: '1.4' }}>
                 Peningkatan penuh ekosistem AI Internship Malaysia dengan integrasi cloud & autonomi.
               </p>
-              
+
               <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <li style={{ fontSize: '0.74rem', color: '#d1d1d6', lineHeight: '1.4' }}>
                   <strong style={{ color: '#f5f5f7' }}>Live Cloud Backend:</strong> Dikuasakan oleh Render FastAPI dengan Supabase PostgreSQL persisten.
@@ -284,7 +295,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOp
               overflow: 'hidden'
             }}>
               <img
-                src={customQrImage}
+                src={settings.duitnow_qr_url.startsWith('http') || settings.duitnow_qr_url.startsWith('data:') ? settings.duitnow_qr_url : (settings.duitnow_qr_url || '/duitnow-qr.svg')}
                 alt="DuitNow QR Code"
                 style={{
                   width: '100%',
@@ -293,36 +304,6 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOp
                 }}
               />
             </div>
-
-            {/* Upload or change QR button */}
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleQrUpload}
-              accept="image/*"
-              style={{ display: 'none' }}
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px dashed rgba(255, 255, 255, 0.2)',
-                color: '#d1d1d6',
-                padding: '6px 12px',
-                borderRadius: '8px',
-                fontSize: '0.72rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                marginBottom: '12px',
-                transition: 'all 0.15s ease'
-              }}
-              title="Tukar kepada gambar QR DuitNow peribadi anda"
-            >
-              <Upload size={12} />
-              Tukar Gambar QR DuitNow
-            </button>
 
             {/* Manual Account Copy Option */}
             <div style={{
@@ -338,10 +319,10 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOp
             }}>
               <div style={{ textAlign: 'left' }}>
                 <div style={{ fontSize: '0.68rem', color: '#86868b' }}>DuitNow / TNG eWallet</div>
-                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#f5f5f7' }}>InternFlow Community Fund</div>
+                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#f5f5f7' }}>{settings.duitnow_account_name}</div>
               </div>
               <button
-                onClick={() => handleCopyAccount('internflow-fund@duitnow')}
+                onClick={() => handleCopyAccount(settings.duitnow_account_number)}
                 style={{
                   background: copiedAccount ? 'rgba(48, 209, 88, 0.2)' : 'rgba(255, 255, 255, 0.08)',
                   border: 'none',
@@ -403,14 +384,14 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOp
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.73rem', color: '#d1d1d6' }}>
                 <div>✨ Cadangan syarikat tech Malaysia baharu</div>
-                <div>🐞 Laporan pepijat atau masalah login Google</div>
+                <div>🐞 Laporan bug atau masalah login Google</div>
                 <div>💡 Ciri integrasi AI Coach yang diinginkan</div>
               </div>
             </div>
 
             {/* Direct Google Form CTA Button */}
             <a
-              href="https://forms.gle/sampleGoogleFormInternFlow"
+              href={settings.feedback_form_url || 'https://forms.gle/sampleGoogleFormInternFlow'}
               target="_blank"
               rel="noopener noreferrer"
               style={{
