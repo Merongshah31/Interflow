@@ -139,6 +139,8 @@ const resolveCoordinates = (
   return { lat: 3.1390, lng: 101.6869 }; // Default: Kuala Lumpur Hub
 };
 
+const clampZoom = (zoom: number): number => Math.min(Math.max(zoom, 6), 18);
+
 export const CompanyMap: React.FC<CompanyMapProps> = ({
   internships = [],
   onTriggerOutreach,
@@ -151,6 +153,21 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
   const markersRef = useRef<L.Marker[]>([]);
   const markersMapRef = useRef<Map<string, L.Marker>>(new Map());
   const sidebarListRef = useRef<HTMLDivElement | null>(null);
+
+  // Guard flags to prevent unintended re-centering and animation clashes
+  const hasInitializedRef = useRef<boolean>(false);
+  const hasInitialFitRef = useRef<boolean>(false);
+  const prevFilteredKeyRef = useRef<string>('');
+  const onTriggerOutreachRef = useRef(onTriggerOutreach);
+  useEffect(() => {
+    onTriggerOutreachRef.current = onTriggerOutreach;
+  }, [onTriggerOutreach]);
+
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+  const selectedCompanyIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedCompanyIdRef.current = selectedCompanyId;
+  }, [selectedCompanyId]);
 
   // Derive map companies directly from live scout/pipeline internships
   const companies: MapCompanyLocation[] = React.useMemo(() => {
@@ -182,22 +199,20 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
     });
   }, [internships]);
 
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
-
   // Filters — default minScore to 0 so ALL approved internships display on map
   const [searchQuery, setSearchQuery] = useState('');
   const [workModeFilter, setWorkModeFilter] = useState<'All' | 'Hybrid' | 'On-site' | 'Remote'>('All');
   const [minScore, setMinScore] = useState<number>(0);
   const [activeCluster, setActiveCluster] = useState<string>('all');
 
-  // Initialize Leaflet Map Centered and Bound to Malaysia
+  // Initialize Leaflet Map Centered and Bound to Malaysia (Runs ONCE)
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
     if (!mapInstanceRef.current) {
       const map = L.map(mapContainerRef.current, {
         center: MALAYSIA_CENTER,
-        zoom: 6.5,
+        zoom: clampZoom(6.5),
         minZoom: 6,
         maxZoom: 18,
         maxBounds: MALAYSIA_BOUNDS,
@@ -242,6 +257,7 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
       }).addTo(map);
 
       mapInstanceRef.current = map;
+      hasInitializedRef.current = true;
     }
 
     // Auto-invalidate size on viewport changes
@@ -263,14 +279,10 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
     };
   }, []);
 
-  // Update Markers when filters change
+  // Update Markers when filter criteria or companies change (Decoupled from card clicks & incidental renders)
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
-
-    markersRef.current.forEach(m => m.remove());
-    markersRef.current = [];
-    markersMapRef.current.clear();
 
     const filtered = companies.filter(c => {
       const matchSearch =
@@ -281,6 +293,13 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
       const matchScore = minScore === 0 ? true : c.match_score >= minScore;
       return matchSearch && matchMode && matchScore;
     });
+
+    const currentFilteredKey = filtered.map(c => `${c.id}-${c.lat.toFixed(4)}-${c.lng.toFixed(4)}`).join('|');
+    const hasFilterContentChanged = prevFilteredKeyRef.current !== currentFilteredKey;
+
+    markersRef.current.forEach(m => m.remove());
+    markersRef.current = [];
+    markersMapRef.current.clear();
 
     filtered.forEach(c => {
       const isHigh = c.match_score >= 90;
@@ -390,7 +409,7 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
         offset: [0, -18]
       });
 
-      // Interaction Sync: Clicking marker scrolls corresponding sidebar card into view
+      // Interaction Sync: Clicking marker highlights & scrolls sidebar card into view WITHOUT resetting zoom
       marker.on('click', () => {
         setSelectedCompanyId(c.id);
         const cardEl = document.getElementById(`company-card-${c.id}`);
@@ -408,8 +427,8 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
         const outreachBtn = document.getElementById(`btn-popup-outreach-${c.id}`);
         if (outreachBtn) {
           outreachBtn.onclick = () => {
-            if (onTriggerOutreach) {
-              onTriggerOutreach({
+            if (onTriggerOutreachRef.current) {
+              onTriggerOutreachRef.current({
                 company: c.company,
                 role: c.role,
                 matchScore: c.match_score
@@ -423,42 +442,79 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
       markersMapRef.current.set(c.id, marker);
     });
 
-    // Automatically fit map bounds gently within Malaysia bounds
-    if (markersRef.current.length > 0) {
+    // 1. Initial fit: runs ONCE on initial mount when markers are first ready
+    if (!hasInitialFitRef.current && markersRef.current.length > 0) {
       const group = L.featureGroup(markersRef.current);
       const bounds = group.getBounds();
       if (bounds.isValid()) {
-        map.fitBounds(bounds.pad(0.12), { maxZoom: 12, animate: true });
+        map.fitBounds(bounds.pad(0.12), { maxZoom: 12, animate: false });
+      }
+      hasInitialFitRef.current = true;
+      prevFilteredKeyRef.current = currentFilteredKey;
+      return;
+    }
+
+    // 2. Filter updates: only auto-fit if filter content actually changed AND no specific card is currently selected
+    if (hasFilterContentChanged) {
+      prevFilteredKeyRef.current = currentFilteredKey;
+      if (!selectedCompanyIdRef.current && markersRef.current.length > 0) {
+        const group = L.featureGroup(markersRef.current);
+        const bounds = group.getBounds();
+        if (bounds.isValid()) {
+          map.stop();
+          map.fitBounds(bounds.pad(0.12), { maxZoom: 12, animate: true });
+        }
       }
     }
-  }, [companies, searchQuery, workModeFilter, minScore, onTriggerOutreach]);
+  }, [companies, searchQuery, workModeFilter, minScore]);
 
-  // Interaction Sync: Clicking sidebar job card smoothly flyTo marker and opens popup
+  // Interaction Sync: Clicking sidebar job card smoothly flyTo marker and opens popup (isolated)
   const handleSelectCompanyFromList = (c: MapCompanyLocation) => {
+    if (selectedCompanyId === c.id) {
+      // Already selected; just ensure popup is open without re-flying
+      const marker = markersMapRef.current.get(c.id);
+      if (marker && !marker.isPopupOpen()) {
+        marker.openPopup();
+      }
+      return;
+    }
+
     setSelectedCompanyId(c.id);
     const map = mapInstanceRef.current;
     if (map) {
-      map.flyTo([c.lat, c.lng], 14, {
+      map.stop(); // Stop any currently running map animation
+      const targetZoom = clampZoom(14);
+      map.flyTo([c.lat, c.lng], targetZoom, {
         animate: true,
-        duration: 1.2
+        duration: 1.0
       });
       const marker = markersMapRef.current.get(c.id);
       if (marker) {
         setTimeout(() => {
           marker.openPopup();
-        }, 350);
+        }, 300);
       }
     }
   };
 
   const jumpToCluster = (clusterKey: string, lat: number, lng: number, zoom: number) => {
     setActiveCluster(clusterKey);
-    mapInstanceRef.current?.flyTo([lat, lng], zoom, { animate: true, duration: 1.0 });
+    setSelectedCompanyId(null);
+    const map = mapInstanceRef.current;
+    if (map) {
+      map.stop();
+      map.flyTo([lat, lng], clampZoom(zoom), { animate: true, duration: 1.0 });
+    }
   };
 
   const resetToMalaysia = () => {
     setActiveCluster('all');
-    mapInstanceRef.current?.flyTo(MALAYSIA_CENTER, 6.5, { animate: true, duration: 1.0 });
+    setSelectedCompanyId(null);
+    const map = mapInstanceRef.current;
+    if (map) {
+      map.stop();
+      map.flyTo(MALAYSIA_CENTER, clampZoom(6.5), { animate: true, duration: 1.0 });
+    }
   };
 
   const filteredList = companies.filter(c => {

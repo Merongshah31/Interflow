@@ -35,10 +35,37 @@ type ShowcaseTab = 'scout' | 'match' | 'hitl' | 'calendar';
 
 export const AuthGate: React.FC<AuthGateProps> = ({ onLoginSuccess }) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('google_auth') === 'error') {
+        const err = params.get('error') || 'Google authentication failed.';
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return decodeURIComponent(err);
+      }
+    }
+    return null;
+  });
   const [activeTab, setActiveTab] = useState<ShowcaseTab>('scout');
 
   useEffect(() => {
+    // Check if returning from a mobile OAuth redirect
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('google_auth') === 'success') {
+        const userStr = params.get('user');
+        if (userStr) {
+          const user: UserProfile = JSON.parse(decodeURIComponent(userStr));
+          sessionStorage.setItem('internflow_user', JSON.stringify(user));
+          window.history.replaceState({}, document.title, window.location.pathname);
+          onLoginSuccess(user);
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('Error reading OAuth redirect callback:', e);
+    }
+
     const handleMessage = (event: MessageEvent) => {
       if (!event.data) return;
       if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
@@ -63,33 +90,31 @@ export const AuthGate: React.FC<AuthGateProps> = ({ onLoginSuccess }) => {
     return () => window.removeEventListener('message', handleMessage);
   }, [onLoginSuccess]);
 
-  const handleQuickLogin = (name: string = 'Shahidsaharudin', email: string = 'shahidsaharudin31@gmail.com') => {
-    const user: UserProfile = {
-      user_id: `usr-${btoa(email).replace(/[^a-zA-Z0-9]/g, '').slice(0, 8)}`,
-      name: name,
-      email: email,
-      avatar_url: '',
-      headline: 'Software Engineering'
-    };
-    sessionStorage.setItem('internflow_user', JSON.stringify(user));
-    setIsLoading(false);
-    onLoginSuccess(user);
-  };
-
   const handleSignIn = async () => {
     setIsLoading(true);
     setErrorMsg(null);
+
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+    const returnTo = window.location.origin;
+
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/google/url`);
+      const res = await fetch(`${API_BASE_URL}/api/auth/google/url?return_to=${encodeURIComponent(returnTo)}`);
       const data = await res.json();
 
       if (!data.configured || !data.url) {
-        // If Google OAuth credentials are not configured in backend, smoothly log in as student demo
-        console.warn('Google OAuth not configured, using instant student demo access');
-        handleQuickLogin();
+        setErrorMsg('Google Workspace authentication service is not configured or unavailable.');
+        setIsLoading(false);
         return;
       }
 
+      if (isMobile) {
+        // Mobile browsers strictly block window.open popups after asynchronous fetch.
+        // Full redirect guarantees no popup blocking and seamless account selection.
+        window.location.href = data.url;
+        return;
+      }
+
+      // Desktop: Open centered popup window
       const width = 540;
       const height = 680;
       const left = window.screen.width / 2 - width / 2;
@@ -101,13 +126,13 @@ export const AuthGate: React.FC<AuthGateProps> = ({ onLoginSuccess }) => {
         `toolbar=no, location=no, directories=no, status=no, menubar=no, scrollbars=yes, resizable=yes, copyhistory=no, width=${width}, height=${height}, top=${top}, left=${left}`
       );
 
-      if (!popup) {
-        setErrorMsg('Pop-up blocked! Click "Continue as Demo Student" below to enter directly.');
-        setIsLoading(false);
+      // If ad blocker or strict desktop popup blocker blocked the popup, fall back immediately to direct redirect
+      if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+        window.location.href = data.url;
       }
-    } catch {
-      // Backend unavailable or network error: fallback to demo session
-      handleQuickLogin();
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Unable to connect to Google authentication service.');
+      setIsLoading(false);
     }
   };
 
@@ -429,36 +454,6 @@ export const AuthGate: React.FC<AuthGateProps> = ({ onLoginSuccess }) => {
                   <ArrowRight size={16} color="#1d1d1f" />
                 </>
               )}
-            </button>
-
-            {/* Direct Demo Access Button */}
-            <button
-              onClick={() => handleQuickLogin()}
-              style={{
-                background: 'rgba(0, 113, 227, 0.15)',
-                color: '#64d2ff',
-                border: '1px solid rgba(0, 113, 227, 0.35)',
-                borderRadius: '14px',
-                padding: '14px 22px',
-                fontSize: '0.94rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                transition: 'all 0.18s ease'
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(0, 113, 227, 0.25)';
-                e.currentTarget.style.borderColor = 'rgba(0, 113, 227, 0.6)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'rgba(0, 113, 227, 0.15)';
-                e.currentTarget.style.borderColor = 'rgba(0, 113, 227, 0.35)';
-              }}
-            >
-              <span>Continue as Demo Student</span>
-              <ArrowRight size={15} color="#64d2ff" />
             </button>
 
             {/* Secondary Showcase Button */}

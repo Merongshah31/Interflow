@@ -99,13 +99,21 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({ onStat
   const handleConnect = async () => {
     setIsLoading(true);
     setErrorMsg(null);
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+    const returnTo = window.location.href;
+
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/google/url`);
+      const res = await fetch(`${API_BASE_URL}/api/auth/google/url?return_to=${encodeURIComponent(returnTo)}`);
       const data = await res.json();
 
       if (!data.configured || !data.url) {
         setShowConfigModal(true);
         setIsLoading(false);
+        return;
+      }
+
+      if (isMobile) {
+        window.location.href = data.url;
         return;
       }
 
@@ -121,8 +129,8 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({ onStat
         `toolbar=no, location=no, directories=no, status=no, menubar=no, scrollbars=yes, resizable=yes, copyhistory=no, width=${width}, height=${height}, top=${top}, left=${left}`
       );
 
-      if (!popup) {
-        setErrorMsg('Pop-up blocked! Please allow pop-ups for this site to sign in with Google.');
+      if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+        window.location.href = data.url;
       }
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Failed to initialize Google login');

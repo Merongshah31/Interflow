@@ -20,6 +20,18 @@ export const App: React.FC = () => {
   // User Profile & Authentication Gate
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     try {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('google_auth') === 'success') {
+          const userParam = params.get('user');
+          if (userParam) {
+            const user: UserProfile = JSON.parse(decodeURIComponent(userParam));
+            sessionStorage.setItem('internflow_user', JSON.stringify(user));
+            window.history.replaceState({}, document.title, window.location.pathname);
+            return user;
+          }
+        }
+      }
       const saved = sessionStorage.getItem('internflow_user');
       return saved ? JSON.parse(saved) : null;
     } catch {
