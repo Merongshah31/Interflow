@@ -105,6 +105,46 @@ const formatFullTimestamp = (isoString?: string | Date): string => {
   }
 };
 
+export interface DeadlineDisplayInfo {
+  text: string;
+  isRolling: boolean;
+}
+
+const formatDeadlineDisplay = (raw?: string): DeadlineDisplayInfo => {
+  if (!raw) return { text: 'Open / Rolling', isRolling: true };
+  const trimmed = raw.trim();
+  const lower = trimmed.toLowerCase();
+  if (
+    !trimmed ||
+    trimmed === '10/30/2026' ||
+    lower.includes('not stated') ||
+    lower.includes('rolling') ||
+    lower.includes('open') ||
+    lower.includes('undisclosed') ||
+    lower === 'none'
+  ) {
+    return { text: 'Open / Rolling', isRolling: true };
+  }
+
+  const parsed = Date.parse(trimmed);
+  if (!isNaN(parsed)) {
+    const d = new Date(parsed);
+    const year = d.getFullYear();
+    if (year >= 2024 && year <= 2035) {
+      // Legacy hardcoded fallback check: 2026-10-30
+      if (d.getMonth() === 9 && d.getDate() === 30 && year === 2026) {
+        return { text: 'Open / Rolling', isRolling: true };
+      }
+      return {
+        text: d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+        isRolling: false
+      };
+    }
+  }
+
+  return { text: trimmed, isRolling: false };
+};
+
 const ALL_STATUSES: Internship['status'][] = [
   'Not Started',
   'Applied',
@@ -326,9 +366,19 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
       } else if (sortBy === 'salary') {
         cmp = parseSalaryNum(a.salary) - parseSalaryNum(b.salary);
       } else if (sortBy === 'deadline') {
-        const dateA = new Date(a.deadline).getTime() || 0;
-        const dateB = new Date(b.deadline).getTime() || 0;
-        cmp = dateA - dateB;
+        const dA = formatDeadlineDisplay(a.deadline);
+        const dB = formatDeadlineDisplay(b.deadline);
+        if (dA.isRolling && dB.isRolling) {
+          cmp = 0;
+        } else if (dA.isRolling) {
+          cmp = 1; // Open / Rolling comes after fixed dates
+        } else if (dB.isRolling) {
+          cmp = -1;
+        } else {
+          const dateA = new Date(a.deadline).getTime() || 0;
+          const dateB = new Date(b.deadline).getTime() || 0;
+          cmp = dateA - dateB;
+        }
       } else if (sortBy === 'updatedAt') {
         const timeA = new Date(a.updatedAt || a.createdAt || '').getTime() || 0;
         const timeB = new Date(b.updatedAt || b.createdAt || '').getTime() || 0;
@@ -348,7 +398,7 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
       }
     } else {
       setSortBy(column);
-      setSortDirection('asc');
+      setSortDirection(column === 'updatedAt' ? 'desc' : 'asc');
     }
   };
 
@@ -413,7 +463,7 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
       companyLogoText: newCompany.substring(0, 1).toUpperCase(),
       role: newRole,
       status: 'Not Started',
-      deadline: newDeadline || '10/30/2026',
+      deadline: newDeadline.trim() || 'Open / Rolling',
       matchScore: 85,
       matchTier: 'High Match',
       aiReadiness: 'Skills Ready',
@@ -846,7 +896,7 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
                       </div>
                       <div className="mobile-card-deadline">
                         <Calendar size={11} />
-                        <span>Deadline: {item.deadline}</span>
+                        <span>{formatDeadlineDisplay(item.deadline).isRolling ? 'Open / Rolling' : `Deadline: ${formatDeadlineDisplay(item.deadline).text}`}</span>
                       </div>
                     </div>
 
@@ -1303,10 +1353,34 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
 
                     {/* 7. Deadline */}
                     <td style={{ padding: '12px 16px', color: '#86868b', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        <Calendar size={12} color="#6e6e73" />
-                        <span>{item.deadline}</span>
-                      </div>
+                      {(() => {
+                        const dl = formatDeadlineDisplay(item.deadline);
+                        return (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <Calendar size={12} color={dl.isRolling ? '#6e6e73' : '#2997ff'} />
+                            {dl.isRolling ? (
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                background: 'rgba(255, 255, 255, 0.04)',
+                                border: '1px solid rgba(255, 255, 255, 0.08)',
+                                color: '#86868b',
+                                fontSize: '0.72rem',
+                                fontWeight: 500,
+                                fontFamily: 'var(--font-sans)'
+                              }}>
+                                {dl.text}
+                              </span>
+                            ) : (
+                              <span style={{ color: '#f5f5f7', fontWeight: 500, fontFamily: 'var(--font-sans)', fontSize: '0.74rem' }}>
+                                {dl.text}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     {/* 8. Timestamp Last Update */}
@@ -1544,7 +1618,7 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
                   <label style={{ fontSize: '0.72rem', color: '#86868b', display: 'block', marginBottom: '4px' }}>Deadline Date</label>
                   <input
                     type="text"
-                    placeholder="10/30/2026"
+                    placeholder="e.g. 15 Nov 2026 or Open / Rolling"
                     value={newDeadline}
                     onChange={e => setNewDeadline(e.target.value)}
                     style={{
@@ -1753,7 +1827,7 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
               <span style={{ color: 'rgba(255, 255, 255, 0.15)' }}>|</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.74rem', color: '#86868b' }}>
                 <Calendar size={12} color="#86868b" />
-                <span>Apply by {selectedRole.deadline}</span>
+                <span>{formatDeadlineDisplay(selectedRole.deadline).isRolling ? 'Open / Rolling Admission' : `Apply by ${formatDeadlineDisplay(selectedRole.deadline).text}`}</span>
               </div>
               <span style={{ color: 'rgba(255, 255, 255, 0.15)' }}>|</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem' }}>

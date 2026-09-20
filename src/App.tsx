@@ -49,6 +49,14 @@ export const App: React.FC = () => {
   });
   const [showHITLModal, setShowHITLModal] = useState<boolean>(false);
   const [internships, setInternships] = useState<Internship[]>(INITIAL_INTERNSHIPS);
+  const [toast, setToast] = useState<{ type: 'success' | 'info' | 'error'; message: string; link?: string } | null>(null);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   // Register PWA Service Worker
   useEffect(() => {
@@ -107,6 +115,15 @@ export const App: React.FC = () => {
         const data = await res.json();
         if (Array.isArray(data)) {
           // Strict user gate: only approved roles appear at React (user)
+          const sanitizeDeadline = (d?: string): string => {
+            if (!d) return 'Open / Rolling';
+            const trimmed = d.trim();
+            if (!trimmed || trimmed === '10/30/2026' || trimmed.toLowerCase() === 'not stated' || trimmed.toLowerCase() === 'undisclosed' || trimmed.toLowerCase() === 'none') {
+              return 'Open / Rolling';
+            }
+            return trimmed;
+          };
+
           const approvedList = data.filter((item: any) => item.is_approved === true);
           const mapped: Internship[] = approvedList.map((item: any) => ({
             id: item.id,
@@ -115,7 +132,7 @@ export const App: React.FC = () => {
             companyLogoText: item.companyLogoText || (item.company ? item.company[0] : 'C'),
             role: item.role,
             status: item.status,
-            deadline: item.deadline || '10/30/2026',
+            deadline: sanitizeDeadline(item.deadline),
             matchScore: (typeof item.match_score === 'number' && item.match_score > 0) ? item.match_score : 85,
             matchTier: item.match_tier || 'High Match',
             aiReadiness: item.ai_readiness || 'Skills Ready',
@@ -132,8 +149,8 @@ export const App: React.FC = () => {
             contactEmail: item.contact_email || item.contactEmail || `careers@${(item.company || '').toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
             requiredSkills: item.required_skills || item.requiredSkills || [],
             coordinates: item.coordinates || (item.lat && item.lng ? { lat: Number(item.lat), lng: Number(item.lng) } : undefined),
-            updatedAt: item.updated_at || item.updatedAt || item.created_at || item.createdAt || new Date().toISOString(),
-            createdAt: item.created_at || item.createdAt || new Date().toISOString()
+            updatedAt: item.updated_at || item.updatedAt || item.created_at || item.createdAt || undefined,
+            createdAt: item.created_at || item.createdAt || undefined
           }));
           // frontend safety: dedupe by company+role in case backend still has legacy duplicates
           const seen = new Set<string>();
@@ -189,6 +206,46 @@ export const App: React.FC = () => {
     }).catch(() => {
       // Offline fallback
     });
+
+    // Auto-sync application deadline to Google Calendar when marked as Applied
+    if (newStatus === 'Applied') {
+      const target = internships.find(item => item.id === id);
+      if (target) {
+        fetch(`${API_BASE_URL}/api/calendar/sync-deadline`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(currentUser?.user_id ? { 'X-User-Id': currentUser.user_id } : {})
+          },
+          body: JSON.stringify({
+            company: target.company,
+            role: target.role,
+            deadline: target.deadline,
+            job_url: target.jobUrl,
+            location: target.location,
+            salary: target.salary,
+            user_id: currentUser?.user_id
+          })
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              setToast({
+                type: 'success',
+                message: `📅 ${target.company} deadline synced to Google Calendar!`,
+                link: data.html_link
+              });
+            } else if (data.html_link) {
+              setToast({
+                type: 'info',
+                message: `Google Workspace not connected. Click to add to Google Calendar.`,
+                link: data.html_link
+              });
+            }
+          })
+          .catch(() => {});
+      }
+    }
   };
 
 
@@ -490,6 +547,64 @@ export const App: React.FC = () => {
           onOpenProfile={() => setShowProfileModal(true)}
         />
       </div>
+
+      {/* Google Calendar Auto-Sync Toast Notification */}
+      {toast && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            background: 'rgba(28, 28, 30, 0.95)',
+            border: toast.type === 'success' ? '1px solid rgba(48, 209, 88, 0.45)' : '1px solid rgba(100, 210, 255, 0.45)',
+            backdropFilter: 'blur(20px)',
+            color: '#f5f5f7',
+            padding: '12px 18px',
+            borderRadius: '12px',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.55)',
+            fontSize: '0.84rem'
+          }}
+        >
+          <span>{toast.message}</span>
+          {toast.link && (
+            <a
+              href={toast.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: '#2997ff',
+                textDecoration: 'none',
+                fontWeight: 600,
+                fontSize: '0.8rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px'
+              }}
+            >
+              View Event ↗
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#86868b',
+              cursor: 'pointer',
+              padding: '2px',
+              marginLeft: '4px',
+              fontSize: '0.9rem'
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 };
