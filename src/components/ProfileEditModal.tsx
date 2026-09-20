@@ -81,20 +81,21 @@ export const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
       alignItems: 'center',
       justifyContent: 'center',
       zIndex: 3500,
-      padding: '20px'
+      padding: '16px'
     }}>
       <div style={{
         background: 'rgba(28, 28, 30, 0.96)',
         backdropFilter: 'blur(30px)',
         borderRadius: '20px',
         border: '1px solid rgba(255, 255, 255, 0.12)',
-        width: '520px',
-        maxWidth: '100%',
+        width: '100%',
+        maxWidth: '520px',
         maxHeight: '90vh',
         overflowY: 'auto',
         boxShadow: '0 32px 80px rgba(0, 0, 0, 0.75)',
-        padding: '26px 28px',
-        color: '#f5f5f7'
+        padding: '22px 20px',
+        color: '#f5f5f7',
+        boxSizing: 'border-box'
       }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>

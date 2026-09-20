@@ -14,7 +14,12 @@ import {
   RotateCw,
   Clock,
   Pencil,
-  Loader2
+  Loader2,
+  LayoutGrid,
+  Table as TableIcon,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 
 export type RoleSource = 'JobStreet' | 'Hiredly' | 'LinkedIn' | 'Glassdoor' | 'Maukerja' | 'Indeed' | 'MyFutureJobs' | 'Tech in Asia' | 'NodeFlair' | 'Company Portal' | (string & {});
@@ -126,6 +131,18 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
   const [statusFilter, setStatusFilter] = useState<'All' | Internship['status']>('All');
   const [workModeFilter, setWorkModeFilter] = useState<'All' | WorkMode>('All');
   const [sourceFilter, setSourceFilter] = useState<'All' | RoleSource>('All');
+  const [locationFilter, setLocationFilter] = useState<string>('All');
+
+  // Sorting State (default, location, company, role, salary, deadline, updatedAt)
+  const [sortBy, setSortBy] = useState<'default' | 'location' | 'company' | 'role' | 'salary' | 'deadline' | 'updatedAt'>('default');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>(() => {
+    if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+      return 'cards';
+    }
+    return 'table';
+  });
 
   // Modal State
   const [showAddModal, setShowAddModal] = useState(false);
@@ -203,6 +220,18 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Dynamically derive unique primary locations/places for filter dropdown
+  const availableLocations = React.useMemo(() => {
+    const locSet = new Set<string>();
+    internships.forEach(item => {
+      if (item.location) {
+        const primary = item.location.split(',')[0].trim();
+        if (primary) locSet.add(primary);
+      }
+    });
+    return Array.from(locSet).sort((a, b) => a.localeCompare(b));
+  }, [internships]);
+
   // Multi-criteria Filtering
   const filtered = internships.filter(item => {
     const matchesSearch =
@@ -214,9 +243,59 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
     const matchesStatus = statusFilter === 'All' || item.status === statusFilter;
     const matchesWorkMode = workModeFilter === 'All' || item.workMode === workModeFilter;
     const matchesSource = sourceFilter === 'All' || item.resource === sourceFilter;
+    const matchesLocation = locationFilter === 'All' || (item.location && item.location.toLowerCase().includes(locationFilter.toLowerCase()));
 
-    return matchesSearch && matchesStatus && matchesWorkMode && matchesSource;
+    return matchesSearch && matchesStatus && matchesWorkMode && matchesSource && matchesLocation;
   });
+
+  // Sorting Logic supporting Location, Company, Role, Stipend, Deadline, and Last Updated
+  const sorted = React.useMemo(() => {
+    if (sortBy === 'default') return filtered;
+
+    const parseSalaryNum = (s?: string): number => {
+      if (!s) return 0;
+      const digits = s.replace(/[^0-9]/g, '');
+      return digits ? parseInt(digits, 10) : 0;
+    };
+
+    return [...filtered].sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === 'location') {
+        const locA = (a.location || '').toLowerCase();
+        const locB = (b.location || '').toLowerCase();
+        cmp = locA.localeCompare(locB);
+      } else if (sortBy === 'company') {
+        cmp = (a.company || '').localeCompare(b.company || '');
+      } else if (sortBy === 'role') {
+        cmp = (a.role || '').localeCompare(b.role || '');
+      } else if (sortBy === 'salary') {
+        cmp = parseSalaryNum(a.salary) - parseSalaryNum(b.salary);
+      } else if (sortBy === 'deadline') {
+        const dateA = new Date(a.deadline).getTime() || 0;
+        const dateB = new Date(b.deadline).getTime() || 0;
+        cmp = dateA - dateB;
+      } else if (sortBy === 'updatedAt') {
+        const timeA = new Date(a.updatedAt || a.createdAt || '').getTime() || 0;
+        const timeB = new Date(b.updatedAt || b.createdAt || '').getTime() || 0;
+        cmp = timeA - timeB;
+      }
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+  }, [filtered, sortBy, sortDirection]);
+
+  const handleSort = (column: 'default' | 'location' | 'company' | 'role' | 'salary' | 'deadline' | 'updatedAt') => {
+    if (sortBy === column) {
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else {
+        setSortBy('default');
+        setSortDirection('asc');
+      }
+    } else {
+      setSortBy(column);
+      setSortDirection('asc');
+    }
+  };
 
   const getStatusBadgeClass = (status: Internship['status']) => {
     switch (status) {
@@ -308,7 +387,7 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
     onTriggerOutreach(item);
   };
 
-  const hasActiveFilters = statusFilter !== 'All' || workModeFilter !== 'All' || sourceFilter !== 'All' || searchTerm !== '';
+  const hasActiveFilters = statusFilter !== 'All' || workModeFilter !== 'All' || sourceFilter !== 'All' || locationFilter !== 'All' || sortBy !== 'default' || searchTerm !== '';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', boxSizing: 'border-box' }}>
@@ -424,6 +503,72 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
             </div>
           </div>
 
+          {/* Location / Place Dropdown Filter */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <MapPin size={12} color={locationFilter !== 'All' ? '#2997ff' : '#86868b'} />
+            <span style={{ fontSize: '0.72rem', color: locationFilter !== 'All' ? '#2997ff' : '#86868b', fontWeight: '500' }}>Place:</span>
+            <select
+              value={locationFilter}
+              onChange={e => setLocationFilter(e.target.value)}
+              style={{
+                background: locationFilter !== 'All' ? 'rgba(0, 113, 227, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                border: locationFilter !== 'All' ? '1px solid rgba(0, 113, 227, 0.4)' : '1px solid var(--border-color)',
+                borderRadius: '980px',
+                padding: '4px 10px',
+                color: locationFilter !== 'All' ? '#64d2ff' : '#f5f5f7',
+                fontSize: '0.72rem',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="All" style={{ background: '#1c1c1e', color: '#fff' }}>All Places / Hubs</option>
+              {availableLocations.map(loc => (
+                <option key={loc} value={loc} style={{ background: '#1c1c1e', color: '#fff' }}>{loc}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sort By Dropdown */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <ArrowUpDown size={12} color={sortBy !== 'default' ? '#2997ff' : '#86868b'} />
+            <span style={{ fontSize: '0.72rem', color: sortBy !== 'default' ? '#2997ff' : '#86868b', fontWeight: '500' }}>Sort:</span>
+            <select
+              value={sortBy === 'default' ? 'default' : `${sortBy}-${sortDirection}`}
+              onChange={e => {
+                const val = e.target.value;
+                if (val === 'default') {
+                  setSortBy('default');
+                  setSortDirection('asc');
+                } else {
+                  const [col, dir] = val.split('-') as [any, any];
+                  setSortBy(col);
+                  setSortDirection(dir);
+                }
+              }}
+              style={{
+                background: sortBy !== 'default' ? 'rgba(0, 113, 227, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                border: sortBy !== 'default' ? '1px solid rgba(0, 113, 227, 0.4)' : '1px solid var(--border-color)',
+                borderRadius: '980px',
+                padding: '4px 10px',
+                color: sortBy !== 'default' ? '#64d2ff' : '#f5f5f7',
+                fontSize: '0.72rem',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="default" style={{ background: '#1c1c1e', color: '#fff' }}>Default Order</option>
+              <option value="location-asc" style={{ background: '#1c1c1e', color: '#fff' }}>📍 Place / Location (A → Z)</option>
+              <option value="location-desc" style={{ background: '#1c1c1e', color: '#fff' }}>📍 Place / Location (Z → A)</option>
+              <option value="company-asc" style={{ background: '#1c1c1e', color: '#fff' }}>Company (A → Z)</option>
+              <option value="company-desc" style={{ background: '#1c1c1e', color: '#fff' }}>Company (Z → A)</option>
+              <option value="role-asc" style={{ background: '#1c1c1e', color: '#fff' }}>Role (A → Z)</option>
+              <option value="salary-desc" style={{ background: '#1c1c1e', color: '#fff' }}>Stipend (High to Low)</option>
+              <option value="salary-asc" style={{ background: '#1c1c1e', color: '#fff' }}>Stipend (Low to High)</option>
+              <option value="deadline-asc" style={{ background: '#1c1c1e', color: '#fff' }}>Deadline (Soonest)</option>
+              <option value="updatedAt-desc" style={{ background: '#1c1c1e', color: '#fff' }}>Recently Updated</option>
+            </select>
+          </div>
+
           {/* Source Dropdown Filter */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ fontSize: '0.72rem', color: '#86868b', fontWeight: '500' }}>Source:</span>
@@ -456,6 +601,9 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
                 setStatusFilter('All');
                 setWorkModeFilter('All');
                 setSourceFilter('All');
+                setLocationFilter('All');
+                setSortBy('default');
+                setSortDirection('asc');
               }}
               style={{
                 background: 'transparent',
@@ -520,12 +668,30 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
           alignItems: 'center',
           justifyContent: 'space-between',
           borderBottom: '1px solid var(--border-color)',
-          background: 'rgba(255, 255, 255, 0.01)'
+          background: 'rgba(255, 255, 255, 0.01)',
+          flexWrap: 'wrap',
+          gap: '8px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '0.84rem', fontWeight: '600', color: '#f5f5f7', letterSpacing: '-0.01em' }}>
-              Showing {filtered.length} of {internships.length} Malaysian Tech Roles
+              Showing {sorted.length} of {internships.length} Malaysian Tech Roles
             </span>
+            {sortBy !== 'default' && (
+              <span style={{
+                fontSize: '0.68rem',
+                color: '#64d2ff',
+                background: 'rgba(0, 113, 227, 0.15)',
+                border: '1px solid rgba(0, 113, 227, 0.3)',
+                padding: '1px 7px',
+                borderRadius: '980px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                <ArrowUpDown size={10} />
+                <span>Sorted: {sortBy === 'location' ? 'Place / Location' : sortBy} ({sortDirection === 'asc' ? 'A→Z' : 'Z→A'})</span>
+              </span>
+            )}
             {lastSyncedAt && (
               <>
                 <span style={{ color: '#48484a', fontSize: '0.8rem' }}>•</span>
@@ -535,14 +701,214 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
               </>
             )}
           </div>
-          <span style={{ fontSize: '0.72rem', color: '#86868b' }}>
-            Click status pill to edit directly
-          </span>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span className="hide-on-mobile" style={{ fontSize: '0.72rem', color: '#86868b' }}>
+              Click status pill to edit directly
+            </span>
+
+            {/* View Mode Toggle Switcher */}
+            <div className="view-mode-toggle">
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                className={`view-mode-btn ${viewMode === 'cards' ? 'active' : ''}`}
+                title="Card View (Optimized for Mobile)"
+              >
+                <LayoutGrid size={13} />
+                <span>Cards</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`view-mode-btn ${viewMode === 'table' ? 'active' : ''}`}
+                title="Table View"
+              >
+                <TableIcon size={13} />
+                <span>Table</span>
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Dynamic Data Table */}
-        <div style={{ overflowX: openDropdownId ? 'visible' : 'auto', overflowY: openDropdownId ? 'visible' : 'hidden' }}>
-          <table style={{ width: '100%', minWidth: '1080px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem', tableLayout: 'auto' }}>
+        {viewMode === 'cards' ? (
+          <div className="mobile-internship-cards">
+            {filtered.length === 0 ? (
+              <div style={{ padding: '36px 16px', textAlign: 'center', color: '#86868b' }}>
+                <p style={{ fontSize: '0.9rem', marginBottom: '8px' }}>No internships matched your filters.</p>
+                {onRetry && (
+                  <button onClick={onRetry} className="btn-primary" disabled={isRetrying}>
+                    <RotateCw size={13} className={isRetrying ? 'spin-anim' : ''} />
+                    <span>Sync Pipeline</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              sorted.map((item) => {
+                const isDropdownOpen = openDropdownId === item.id;
+                return (
+                  <div
+                    key={item.id}
+                    className="mobile-card"
+                    onClick={() => handleOpenRoleDetails(item)}
+                  >
+                    {/* Header: Company, Location, Source, Work Mode */}
+                    <div className="mobile-card-header">
+                      <div className="mobile-card-company-wrap">
+                        <div
+                          className="mobile-card-logo"
+                          style={{ background: item.companyLogoBg }}
+                        >
+                          {item.companyLogoText}
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div className="mobile-card-company-name">{item.company}</div>
+                          <div className="mobile-card-location">
+                            <MapPin size={11} color="#86868b" />
+                            <span>{item.location ? item.location.split(',')[0] : 'Malaysia'}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mobile-card-badges">
+                        <span className="source-tag" style={getSourceBadgeStyle(item.resource)}>
+                          {item.resource}
+                        </span>
+                        <span className="mode-tag">{item.workMode}</span>
+                      </div>
+                    </div>
+
+                    {/* Role Title */}
+                    <div className="mobile-card-role">
+                      {item.role}
+                    </div>
+
+                    {/* Stipend & Deadline Meta Row */}
+                    <div className="mobile-card-meta-row">
+                      <div className="mobile-card-stipend">
+                        {item.salary}
+                      </div>
+                      <div className="mobile-card-deadline">
+                        <Calendar size={11} />
+                        <span>Deadline: {item.deadline}</span>
+                      </div>
+                    </div>
+
+                    {/* Footer: Status Pill with Dropdown & Apply Action */}
+                    <div className="mobile-card-footer" onClick={(e) => e.stopPropagation()}>
+                      <div style={{ position: 'relative' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenDropdownId(prev => prev === item.id ? null : item.id);
+                          }}
+                          className={`status-pill ${getStatusBadgeClass(item.status)}`}
+                          style={{
+                            border: '1px solid rgba(255, 255, 255, 0.12)',
+                            cursor: 'pointer',
+                            padding: '4px 10px',
+                            fontSize: '0.72rem'
+                          }}
+                        >
+                          <span style={{
+                            width: '6px',
+                            height: '6px',
+                            borderRadius: '50%',
+                            background: getStatusDotColor(item.status)
+                          }} />
+                          <span>{item.status}</span>
+                          <ChevronDown size={11} style={{ opacity: 0.7 }} />
+                        </button>
+
+                        {/* Floating Status Options Dropdown */}
+                        {isDropdownOpen && (
+                          <div
+                            ref={dropdownRef}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              position: 'absolute',
+                              bottom: 'calc(100% + 4px)',
+                              left: 0,
+                              zIndex: 99999,
+                              background: 'rgba(24, 24, 27, 0.98)',
+                              backdropFilter: 'blur(30px)',
+                              WebkitBackdropFilter: 'blur(30px)',
+                              border: '1px solid rgba(255, 255, 255, 0.18)',
+                              borderRadius: '12px',
+                              padding: '5px',
+                              boxShadow: '0 20px 48px rgba(0, 0, 0, 0.85)',
+                              minWidth: '150px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '2px'
+                            }}
+                          >
+                            {ALL_STATUSES.map(opt => (
+                              <button
+                                key={opt}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onStatusChange(item.id, opt);
+                                  setOpenDropdownId(null);
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  padding: '7px 10px',
+                                  borderRadius: '8px',
+                                  border: 'none',
+                                  background: item.status === opt ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
+                                  color: item.status === opt ? '#ffffff' : '#d1d1d6',
+                                  fontWeight: item.status === opt ? '600' : '400',
+                                  fontSize: '0.74rem',
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                  width: '100%'
+                                }}
+                              >
+                                <span style={{
+                                  width: '6px',
+                                  height: '6px',
+                                  borderRadius: '50%',
+                                  background: getStatusDotColor(opt)
+                                }} />
+                                <span>{opt}</span>
+                                {item.status === opt && (
+                                  <Check size={12} color="#30d158" style={{ marginLeft: 'auto' }} />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleApplyClick(item);
+                          }}
+                          className="btn-action-outline"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '5px 12px' }}
+                        >
+                          <span>Apply</span>
+                          <ExternalLink size={11} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        ) : (
+          /* Dynamic Data Table */
+          <div style={{ overflowX: openDropdownId ? 'visible' : 'auto', overflowY: openDropdownId ? 'visible' : 'hidden' }}>
+            <table style={{ width: '100%', minWidth: '1080px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem', tableLayout: 'auto' }}>
             <thead>
               <tr style={{
                 background: 'rgba(255, 255, 255, 0.015)',
@@ -552,19 +918,89 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
                 letterSpacing: '-0.01em',
                 borderBottom: '1px solid var(--border-color)'
               }}>
-                <th style={{ padding: '11px 16px', fontWeight: '500' }}>Company</th>
-                <th style={{ padding: '11px 16px', fontWeight: '500' }}>Role</th>
+                <th
+                  onClick={() => handleSort('company')}
+                  title="Click to sort by Company"
+                  style={{ padding: '11px 16px', fontWeight: '500', cursor: 'pointer', userSelect: 'none', color: sortBy === 'company' ? '#2997ff' : '#86868b' }}
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span>Company</span>
+                    {sortBy === 'company' && (sortDirection === 'asc' ? <ArrowUp size={11} color="#2997ff" /> : <ArrowDown size={11} color="#2997ff" />)}
+                  </div>
+                </th>
+                <th
+                  onClick={() => handleSort('role')}
+                  title="Click to sort by Role"
+                  style={{ padding: '11px 16px', fontWeight: '500', cursor: 'pointer', userSelect: 'none', color: sortBy === 'role' ? '#2997ff' : '#86868b' }}
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span>Role</span>
+                    {sortBy === 'role' && (sortDirection === 'asc' ? <ArrowUp size={11} color="#2997ff" /> : <ArrowDown size={11} color="#2997ff" />)}
+                  </div>
+                </th>
+                <th
+                  onClick={() => handleSort('location')}
+                  title="Click to sort by Place / Location (A-Z / Z-A)"
+                  style={{
+                    padding: '11px 16px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    color: sortBy === 'location' ? '#2997ff' : '#f5f5f7',
+                    background: sortBy === 'location' ? 'rgba(0, 113, 227, 0.12)' : 'transparent',
+                    borderRadius: '6px',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <MapPin size={12} color={sortBy === 'location' ? '#2997ff' : '#64d2ff'} />
+                    <span>Place / Location</span>
+                    {sortBy === 'location' ? (
+                      sortDirection === 'asc' ? <ArrowUp size={11} color="#2997ff" /> : <ArrowDown size={11} color="#2997ff" />
+                    ) : (
+                      <ArrowUpDown size={11} style={{ opacity: 0.5 }} />
+                    )}
+                  </div>
+                </th>
                 <th style={{ padding: '11px 16px', fontWeight: '500', whiteSpace: 'nowrap', minWidth: '160px' }}>Status</th>
                 <th style={{ padding: '11px 16px', fontWeight: '500' }}>Mode</th>
                 <th style={{ padding: '11px 16px', fontWeight: '500' }}>Source</th>
-                <th style={{ padding: '11px 16px', fontWeight: '500' }}>Stipend (MYR)</th>
-                <th style={{ padding: '11px 16px', fontWeight: '500' }}>Deadline</th>
-                <th style={{ padding: '11px 16px', fontWeight: '500' }}>Last Updated</th>
+                <th
+                  onClick={() => handleSort('salary')}
+                  title="Click to sort by Stipend"
+                  style={{ padding: '11px 16px', fontWeight: '500', cursor: 'pointer', userSelect: 'none', color: sortBy === 'salary' ? '#2997ff' : '#86868b' }}
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span>Stipend (MYR)</span>
+                    {sortBy === 'salary' && (sortDirection === 'asc' ? <ArrowUp size={11} color="#2997ff" /> : <ArrowDown size={11} color="#2997ff" />)}
+                  </div>
+                </th>
+                <th
+                  onClick={() => handleSort('deadline')}
+                  title="Click to sort by Deadline"
+                  style={{ padding: '11px 16px', fontWeight: '500', cursor: 'pointer', userSelect: 'none', color: sortBy === 'deadline' ? '#2997ff' : '#86868b' }}
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span>Deadline</span>
+                    {sortBy === 'deadline' && (sortDirection === 'asc' ? <ArrowUp size={11} color="#2997ff" /> : <ArrowDown size={11} color="#2997ff" />)}
+                  </div>
+                </th>
+                <th
+                  onClick={() => handleSort('updatedAt')}
+                  title="Click to sort by Last Updated"
+                  style={{ padding: '11px 16px', fontWeight: '500', cursor: 'pointer', userSelect: 'none', color: sortBy === 'updatedAt' ? '#2997ff' : '#86868b' }}
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span>Last Updated</span>
+                    {sortBy === 'updatedAt' && (sortDirection === 'asc' ? <ArrowUp size={11} color="#2997ff" /> : <ArrowDown size={11} color="#2997ff" />)}
+                  </div>
+                </th>
                 <th style={{ padding: '11px 16px', fontWeight: '500', textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((item, idx) => {
+              {sorted.map((item, idx) => {
                 const isDropdownOpen = openDropdownId === item.id;
 
                 return (
@@ -572,7 +1008,7 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
                     key={item.id}
                     onClick={() => handleOpenRoleDetails(item)}
                     style={{
-                      borderBottom: idx === filtered.length - 1 ? 'none' : '1px solid var(--border-subtle)',
+                      borderBottom: idx === sorted.length - 1 ? 'none' : '1px solid var(--border-subtle)',
                       transition: 'background 0.12s ease',
                       cursor: 'pointer'
                     }}
@@ -609,6 +1045,16 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
                     {/* 2. Role */}
                     <td style={{ padding: '12px 16px', color: '#d1d1d6', fontWeight: '400' }}>
                       <span title={item.description || 'Description unavailable from source'}>{item.role}</span>
+                    </td>
+
+                    {/* 2.5 Place / Location */}
+                    <td style={{ padding: '12px 16px', color: '#d1d1d6', fontSize: '0.78rem' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <MapPin size={12} color={sortBy === 'location' ? '#2997ff' : '#86868b'} style={{ flexShrink: 0 }} />
+                        <span style={{ fontWeight: sortBy === 'location' ? '600' : '400', color: sortBy === 'location' ? '#64d2ff' : '#d1d1d6' }} title={item.location || 'Malaysia'}>
+                          {item.location || 'Malaysia'}
+                        </span>
+                      </div>
                     </td>
 
                     {/* 3. Status — Interactive Apple Dropdown */}
@@ -778,11 +1224,17 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
                     </td>
 
                     {/* 6. Salary / Stipend in RM */}
-                    <td style={{ padding: '12px 16px', color: '#30d158', fontFamily: 'var(--font-mono)', fontSize: '0.76rem', fontWeight: '500' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                        <span style={{ fontSize: '0.66rem', color: '#86868b', fontWeight: '600' }}>RM</span>
-                        <span>{item.salary.replace(/RM|\$/g, '').trim()}</span>
-                      </div>
+                    <td style={{ padding: '12px 16px', color: '#30d158', fontFamily: 'var(--font-mono)', fontSize: '0.76rem', fontWeight: '500', whiteSpace: 'nowrap' }}>
+                      {(!item.salary || item.salary.toLowerCase().includes('not stated') || item.salary.toLowerCase().includes('undisclosed')) ? (
+                        <span style={{ color: '#86868b', fontSize: '0.74rem', fontWeight: '400', fontFamily: 'var(--font-sans)' }}>
+                          Salary not stated
+                        </span>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <span style={{ fontSize: '0.66rem', color: '#86868b', fontWeight: '600' }}>RM</span>
+                          <span>{item.salary.replace(/RM|\$/gi, '').trim()}</span>
+                        </div>
+                      )}
                     </td>
 
                     {/* 7. Deadline */}
@@ -834,9 +1286,9 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
                 );
               })}
 
-              {filtered.length === 0 && (
+              {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={9} style={{ padding: '48px 24px', textAlign: 'center', color: '#86868b', fontSize: '0.82rem' }}>
+                  <td colSpan={10} style={{ padding: '48px 24px', textAlign: 'center', color: '#86868b', fontSize: '0.82rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
                       <span style={{ fontWeight: '500', color: '#f5f5f7' }}>
                         {internships.length === 0 ? 'No Approved Roles Yet' : 'No Matching Roles'}
@@ -869,8 +1321,9 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
                 </tr>
               )}
             </tbody>
-          </table>
-        </div>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Add New Entry Modal — Apple Sheet Dialog */}
@@ -884,16 +1337,21 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 1000
+          zIndex: 2000,
+          padding: '16px'
         }}>
           <div style={{
             background: 'rgba(28, 28, 30, 0.92)',
             backdropFilter: 'blur(32px)',
-            padding: '24px',
+            padding: '24px 20px',
             borderRadius: '16px',
-            width: '440px',
+            width: '100%',
+            maxWidth: '460px',
+            maxHeight: '90vh',
+            overflowY: 'auto',
             border: '1px solid rgba(255, 255, 255, 0.12)',
-            boxShadow: '0 24px 48px rgba(0, 0, 0, 0.5)'
+            boxShadow: '0 24px 48px rgba(0, 0, 0, 0.5)',
+            boxSizing: 'border-box'
           }}>
             <h3 style={{ color: '#f5f5f7', fontSize: '1.05rem', fontWeight: '600', marginBottom: '14px', letterSpacing: '-0.02em' }}>
               Add Malaysia Internship Listing
@@ -1125,8 +1583,8 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 1100,
-            padding: '20px'
+            zIndex: 2000,
+            padding: '16px'
           }}
         >
           <div
@@ -1144,8 +1602,9 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
               boxShadow: '0 24px 64px rgba(0, 0, 0, 0.75)',
               display: 'flex',
               flexDirection: 'column',
-              padding: '28px',
-              gap: '20px'
+              padding: '24px 20px',
+              gap: '18px',
+              boxSizing: 'border-box'
             }}
           >
             {/* Modal Header */}

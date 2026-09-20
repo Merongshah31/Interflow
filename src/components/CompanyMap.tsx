@@ -38,36 +38,93 @@ const resolveCoordinates = (
   company: string = '',
   existingCoords?: { lat: number; lng: number }
 ): { lat: number; lng: number } => {
-  if (existingCoords && typeof existingCoords.lat === 'number' && typeof existingCoords.lng === 'number' && !isNaN(existingCoords.lat)) {
+  const text = `${location} ${company}`.toLowerCase();
+  
+  // If existingCoords is provided and NOT the generic fallback default [3.1390, 101.6869], trust it!
+  const isGenericDefault = existingCoords &&
+    Math.abs(existingCoords.lat - 3.1390) < 0.005 &&
+    Math.abs(existingCoords.lng - 101.6869) < 0.005;
+
+  if (existingCoords && typeof existingCoords.lat === 'number' && typeof existingCoords.lng === 'number' && !isNaN(existingCoords.lat) && !isGenericDefault) {
     return existingCoords;
   }
-  const text = `${location} ${company}`.toLowerCase();
-  if (text.includes('penang') || text.includes('bayan lepas') || text.includes('georgetown') || text.includes('butterworth')) {
+
+  // 1. Kedah (Kulim Hi-Tech Park, Alor Setar)
+  if (text.includes('kulim') || text.includes('kedah') || text.includes('khtp')) {
+    return { lat: 5.4200, lng: 100.5800 };
+  }
+  // 2. Penang Tech Hubs (Batu Kawan, Bayan Lepas, George Town, Butterworth)
+  if (text.includes('batu kawan')) {
+    return { lat: 5.2638, lng: 100.4357 };
+  }
+  if (text.includes('bayan lepas')) {
+    return { lat: 5.2974, lng: 100.2740 };
+  }
+  if (text.includes('georgetown') || text.includes('george town')) {
+    return { lat: 5.4164, lng: 100.3327 };
+  }
+  if (text.includes('butterworth') || text.includes('seberang')) {
+    return { lat: 5.3991, lng: 100.3638 };
+  }
+  if (text.includes('penang') || text.includes('pulau pinang')) {
     return { lat: 5.3056, lng: 100.2878 };
   }
+  // 3. Cyberjaya & Putrajaya Tech Corridors
   if (text.includes('cyberjaya') || text.includes('sepang')) {
     return { lat: 2.9213, lng: 101.6559 };
   }
   if (text.includes('putrajaya')) {
     return { lat: 2.9264, lng: 101.6964 };
   }
-  if (text.includes('petaling') || text.includes('pj') || text.includes('damansara') || text.includes('subang') || text.includes('sunway') || text.includes('shah alam') || text.includes('selangor')) {
-    return { lat: 3.1584, lng: 101.6148 };
+  // 4. Selangor Tech Hubs (Shah Alam, Petaling Jaya, Subang, Sunway, Damansara)
+  if (text.includes('shah alam')) {
+    return { lat: 3.0733, lng: 101.5185 };
   }
-  if (text.includes('bangsar') || text.includes('mid valley') || text.includes('brickfields')) {
+  if (text.includes('subang') || text.includes('sunway')) {
+    return { lat: 3.0738, lng: 101.6074 };
+  }
+  if (text.includes('damansara') || text.includes('bandar utama')) {
+    return { lat: 3.1360, lng: 101.6180 };
+  }
+  if (text.includes('petaling') || text.includes('pj') || text.includes('selangor')) {
+    return { lat: 3.1073, lng: 101.6067 };
+  }
+  // 5. Kuala Lumpur Clusters (Bangsar South, Mid Valley, KLCC, Mont Kiara)
+  if (text.includes('bangsar') || text.includes('mid valley') || text.includes('kerinchi')) {
     return { lat: 3.1118, lng: 101.6663 };
   }
-  if (text.includes('johor') || text.includes('jb') || text.includes('iskandar') || text.includes('nusajaya')) {
+  if (text.includes('mont kiara') || text.includes('hartamas')) {
+    return { lat: 3.1674, lng: 101.6534 };
+  }
+  if (text.includes('klcc') || text.includes('bukit bintang')) {
+    return { lat: 3.1578, lng: 101.7119 };
+  }
+  if (text.includes('kuala lumpur') || text.includes('kl')) {
+    return { lat: 3.1390, lng: 101.6869 };
+  }
+  // 6. Southern, Northern & Eastern Hubs
+  if (text.includes('johor') || text.includes('jb') || text.includes('iskandar') || text.includes('nusajaya') || text.includes('medini')) {
     return { lat: 1.4927, lng: 103.7414 };
   }
   if (text.includes('melaka') || text.includes('malacca')) {
     return { lat: 2.1896, lng: 102.2501 };
+  }
+  if (text.includes('perak') || text.includes('ipoh') || text.includes('taiping')) {
+    return { lat: 4.5975, lng: 101.0901 };
+  }
+  if (text.includes('pahang') || text.includes('kuantan')) {
+    return { lat: 3.8077, lng: 103.3260 };
   }
   if (text.includes('sarawak') || text.includes('kuching')) {
     return { lat: 1.5533, lng: 110.3592 };
   }
   if (text.includes('sabah') || text.includes('kota kinabalu')) {
     return { lat: 5.9804, lng: 116.0735 };
+  }
+
+  // Fallback to existingCoords if valid, else central KL
+  if (existingCoords && typeof existingCoords.lat === 'number' && typeof existingCoords.lng === 'number' && !isNaN(existingCoords.lat)) {
+    return existingCoords;
   }
   return { lat: 3.1390, lng: 101.6869 }; // Default: Kuala Lumpur Hub
 };
@@ -90,9 +147,11 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
     }
     return internships.map((item, idx) => {
       const coords = resolveCoordinates(item.location, item.company, item.coordinates);
-      // Small offset jitter so distinct listings at the same general tech cluster don't completely overlap
-      const jitterLat = coords.lat + ((idx % 5) - 2) * 0.0015;
-      const jitterLng = coords.lng + (((idx * 3) % 5) - 2) * 0.0015;
+      // Spiral dispersion so multiple listings in the same tech cluster are distinct and clickable
+      const angle = (idx * 137.5 * Math.PI) / 180;
+      const radius = 0.0035 * Math.sqrt((idx % 6) + 1);
+      const jitterLat = coords.lat + Math.sin(angle) * radius;
+      const jitterLng = coords.lng + Math.cos(angle) * radius;
       return {
         id: item.id,
         company: item.company,
@@ -101,7 +160,7 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
         lat: jitterLat,
         lng: jitterLng,
         work_mode: (item.workMode || 'Hybrid') as 'On-site' | 'Hybrid' | 'Remote',
-        match_score: item.matchScore ?? 85,
+        match_score: item.matchScore ?? 0,
         required_skills: item.requiredSkills || [],
         job_url: item.jobUrl || '',
         stipend: item.salary || 'RM 2,000/mo',
@@ -112,12 +171,13 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
   }, [internships]);
 
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+  const [mobileTab, setMobileTab] = useState<'map' | 'list'>('map');
 
-  // Filters
+  // Filters — default minScore to 0 so ALL approved internships display on map
   const [searchQuery, setSearchQuery] = useState('');
   const [workModeFilter, setWorkModeFilter] = useState<'All' | 'Hybrid' | 'On-site' | 'Remote'>('All');
-  const [minScore, setMinScore] = useState<number>(70);
-  const [activeCluster, setActiveCluster] = useState<string>('kl');
+  const [minScore, setMinScore] = useState<number>(0);
+  const [activeCluster, setActiveCluster] = useState<string>('all');
 
   // Initialize Leaflet Map Centered on Malaysia (Klang Valley)
   useEffect(() => {
@@ -175,7 +235,7 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
         c.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.location.toLowerCase().includes(searchQuery.toLowerCase());
       const matchMode = workModeFilter === 'All' || c.work_mode === workModeFilter;
-      const matchScore = c.match_score >= minScore;
+      const matchScore = minScore === 0 ? true : c.match_score >= minScore;
       return matchSearch && matchMode && matchScore;
     });
 
@@ -306,17 +366,30 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
 
       markersRef.current.push(marker);
     });
+
+    // Automatically fit map bounds so all loaded markers across Malaysia are visible
+    if (markersRef.current.length > 0) {
+      const group = L.featureGroup(markersRef.current);
+      const bounds = group.getBounds();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds.pad(0.12), { maxZoom: 13 });
+      }
+    }
   }, [companies, searchQuery, workModeFilter, minScore, onTriggerOutreach]);
 
   const handleSelectCompanyFromList = (c: MapCompanyLocation) => {
     setSelectedCompanyId(c.id);
+    setMobileTab('map');
     const map = mapInstanceRef.current;
     if (map) {
-      map.setView([c.lat, c.lng], 13, { animate: true });
-      const marker = markersRef.current.find(m => (m as unknown as { _companyId?: string })._companyId === c.id);
-      if (marker) {
-        marker.openPopup();
-      }
+      setTimeout(() => {
+        map.invalidateSize();
+        map.setView([c.lat, c.lng], 13, { animate: true });
+        const marker = markersRef.current.find(m => (m as unknown as { _companyId?: string })._companyId === c.id);
+        if (marker) {
+          marker.openPopup();
+        }
+      }, 60);
     }
   };
 
@@ -331,7 +404,7 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
       c.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.location.toLowerCase().includes(searchQuery.toLowerCase());
     const matchMode = workModeFilter === 'All' || c.work_mode === workModeFilter;
-    const matchScore = c.match_score >= minScore;
+    const matchScore = minScore === 0 ? true : c.match_score >= minScore;
     return matchSearch && matchMode && matchScore;
   });
 
@@ -420,12 +493,12 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
 
             {/* Min Match Score Filter */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: '#86868b' }}>
-              <span>Min Fit: <strong style={{ color: '#f5f5f7' }}>{minScore}%</strong></span>
+              <span>Min Fit: <strong style={{ color: '#f5f5f7' }}>{minScore === 0 ? 'All' : `${minScore}%+`}</strong></span>
               <input
                 type="range"
-                min="70"
-                max="95"
-                step="5"
+                min="0"
+                max="90"
+                step="10"
                 value={minScore}
                 onChange={(e) => setMinScore(Number(e.target.value))}
                 style={{ width: '60px', accentColor: '#0071e3', cursor: 'pointer' }}
@@ -515,7 +588,22 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
               cursor: 'pointer'
             }}
           >
-            Penang (Bayan Lepas)
+            Penang (Bayan Lepas / Batu Kawan)
+          </button>
+
+          <button
+            onClick={() => jumpToCluster('kedah', 5.4200, 100.5800, 12)}
+            style={{
+              padding: '3px 10px',
+              borderRadius: '980px',
+              border: activeCluster === 'kedah' ? '1px solid rgba(255,255,255,0.2)' : '1px solid var(--border-subtle)',
+              background: activeCluster === 'kedah' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.03)',
+              color: activeCluster === 'kedah' ? '#fff' : '#86868b',
+              fontSize: '0.72rem',
+              cursor: 'pointer'
+            }}
+          >
+            Kedah (Kulim Hi-Tech)
           </button>
 
           <button
@@ -536,11 +624,36 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
 
       </div>
 
+      {/* Mobile Segmented View Switcher */}
+      <div className="company-map-mobile-toggle">
+        <div className="view-mode-toggle" style={{ width: '100%', justifyContent: 'center' }}>
+          <button
+            type="button"
+            onClick={() => {
+              setMobileTab('map');
+              setTimeout(() => mapInstanceRef.current?.invalidateSize(), 80);
+            }}
+            className={`view-mode-btn ${mobileTab === 'map' ? 'active' : ''}`}
+            style={{ flex: 1, justifyContent: 'center', padding: '6px' }}
+          >
+            <span>Map View</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileTab('list')}
+            className={`view-mode-btn ${mobileTab === 'list' ? 'active' : ''}`}
+            style={{ flex: 1, justifyContent: 'center', padding: '6px' }}
+          >
+            <span>Tech Hubs ({filteredList.length})</span>
+          </button>
+        </div>
+      </div>
+
       {/* Main Map Viewport & Drawer Layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 320px) 1fr', gap: '16px', height: '600px' }}>
+      <div className="company-map-layout">
         
         {/* Left Side: Company Quick Navigation List */}
-        <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+        <div className={`glass-panel map-list-col ${mobileTab === 'list' ? 'mobile-visible' : 'mobile-hidden'}`} style={{ padding: '16px', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#f5f5f7' }}>
               Malaysian Tech Hubs ({filteredList.length})
@@ -638,7 +751,7 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
         </div>
 
         {/* Right Side: Leaflet Interactive Map Viewport */}
-        <div className="glass-panel" style={{ position: 'relative', overflow: 'hidden', height: '100%' }}>
+        <div className={`glass-panel map-viewport-col ${mobileTab === 'map' ? 'mobile-visible' : 'mobile-hidden'}`} style={{ position: 'relative', overflow: 'hidden', height: '100%' }}>
           <div
             ref={mapContainerRef}
             style={{

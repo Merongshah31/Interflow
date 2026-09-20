@@ -54,8 +54,6 @@ export const HITLGatewayModal: React.FC<HITLGatewayModalProps> = ({
     currentAction?.payload.body || ''
   );
 
-  const [emailDeliveryMode, setEmailDeliveryMode] = useState<'direct' | 'draft'>('direct');
-
   if (pendingActions.length === 0) {
     return (
       <div style={{
@@ -118,17 +116,21 @@ export const HITLGatewayModal: React.FC<HITLGatewayModalProps> = ({
       alignItems: 'center',
       justifyContent: 'center',
       zIndex: 2000,
-      padding: '20px'
+      padding: '16px'
     }}>
       <div style={{
-        width: '700px',
-        background: 'rgba(28, 28, 30, 0.92)',
+        width: '100%',
+        maxWidth: '720px',
+        maxHeight: '90vh',
+        overflowY: 'auto',
+        background: 'rgba(28, 28, 30, 0.94)',
         backdropFilter: 'blur(32px)',
         WebkitBackdropFilter: 'blur(32px)',
         borderRadius: '18px',
-        padding: '24px',
-        border: '1px solid rgba(255, 255, 255, 0.12)',
-        boxShadow: '0 24px 64px rgba(0, 0, 0, 0.6)'
+        padding: '20px 18px',
+        border: '1px solid rgba(255, 255, 255, 0.14)',
+        boxShadow: '0 24px 64px rgba(0, 0, 0, 0.6)',
+        boxSizing: 'border-box'
       }}>
         
         {/* Apple macOS Warning Banner */}
@@ -155,14 +157,14 @@ export const HITLGatewayModal: React.FC<HITLGatewayModalProps> = ({
         </div>
 
         {/* Action Details & Editor */}
-        <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '18px' }}>
+        <div className="hitl-modal-grid">
           
           {/* Action List Sidebar */}
-          <div style={{ borderRight: '1px solid var(--border-color)', paddingRight: '14px' }}>
+          <div className="hitl-queue-sidebar" style={{ borderRight: '1px solid var(--border-color)', paddingRight: '14px' }}>
             <span style={{ fontSize: '0.68rem', fontWeight: '600', textTransform: 'uppercase', color: '#86868b', letterSpacing: '0.05em', display: 'block', marginBottom: '8px' }}>
               Queue ({pendingActions.length})
             </span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div className="hitl-queue-list" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {pendingActions.map(action => (
                 <button
                   key={action.actionId}
@@ -221,13 +223,19 @@ export const HITLGatewayModal: React.FC<HITLGatewayModalProps> = ({
                 </div>
 
                 <div>
-                  <label style={{ fontSize: '0.72rem', color: '#86868b', display: 'block', marginBottom: '6px' }}>
-                    Gmail Delivery Action
-                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <label style={{ fontSize: '0.72rem', color: '#86868b' }}>
+                      Gmail Delivery Action
+                    </label>
+                    <span style={{ fontSize: '0.66rem', color: '#ff9f0a', fontWeight: 600, background: 'rgba(255, 159, 10, 0.12)', border: '1px solid rgba(255, 159, 10, 0.25)', padding: '1px 6px', borderRadius: '4px' }}>
+                      Direct Send Disabled
+                    </span>
+                  </div>
                   <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
                     <button
                       type="button"
-                      onClick={() => setEmailDeliveryMode('direct')}
+                      disabled
+                      title="Direct email sending is currently disabled for safety"
                       style={{
                         flex: 1,
                         display: 'flex',
@@ -238,19 +246,18 @@ export const HITLGatewayModal: React.FC<HITLGatewayModalProps> = ({
                         borderRadius: '7px',
                         fontSize: '0.76rem',
                         fontWeight: 500,
-                        cursor: 'pointer',
-                        background: emailDeliveryMode === 'direct' ? 'rgba(48, 209, 88, 0.15)' : 'rgba(255, 255, 255, 0.04)',
-                        border: '1px solid ' + (emailDeliveryMode === 'direct' ? 'rgba(48, 209, 88, 0.4)' : 'rgba(255, 255, 255, 0.1)'),
-                        color: emailDeliveryMode === 'direct' ? '#30d158' : '#86868b',
-                        transition: 'all 0.15s ease'
+                        cursor: 'not-allowed',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        border: '1px dashed rgba(255, 255, 255, 0.1)',
+                        color: '#636366',
+                        opacity: 0.6
                       }}
                     >
                       <Send size={13} />
-                      <span>Send Directly via Gmail</span>
+                      <span>Send Directly (Disabled)</span>
                     </button>
                     <button
                       type="button"
-                      onClick={() => setEmailDeliveryMode('draft')}
                       style={{
                         flex: 1,
                         display: 'flex',
@@ -260,16 +267,16 @@ export const HITLGatewayModal: React.FC<HITLGatewayModalProps> = ({
                         padding: '7px 12px',
                         borderRadius: '7px',
                         fontSize: '0.76rem',
-                        fontWeight: 500,
-                        cursor: 'pointer',
-                        background: emailDeliveryMode === 'draft' ? 'rgba(0, 113, 227, 0.15)' : 'rgba(255, 255, 255, 0.04)',
-                        border: '1px solid ' + (emailDeliveryMode === 'draft' ? 'rgba(0, 113, 227, 0.4)' : 'rgba(255, 255, 255, 0.1)'),
-                        color: emailDeliveryMode === 'draft' ? '#2997ff' : '#86868b',
+                        fontWeight: 600,
+                        cursor: 'default',
+                        background: 'rgba(0, 113, 227, 0.18)',
+                        border: '1px solid rgba(0, 113, 227, 0.45)',
+                        color: '#64d2ff',
                         transition: 'all 0.15s ease'
                       }}
                     >
                       <FileEdit size={13} />
-                      <span>Save as Gmail Draft</span>
+                      <span>Save as Gmail Draft (Active)</span>
                     </button>
                   </div>
                 </div>
@@ -300,21 +307,21 @@ export const HITLGatewayModal: React.FC<HITLGatewayModalProps> = ({
             {/* Google Workspace Connection Banner */}
             <div style={{
               marginTop: '14px',
-              padding: '8px 12px',
+              padding: '9px 12px',
               borderRadius: '8px',
               display: 'flex',
               alignItems: 'center',
               fontSize: '0.73rem',
-              background: isGoogleConnected ? 'rgba(48, 209, 88, 0.08)' : 'rgba(255, 159, 10, 0.08)',
-              border: '1px solid ' + (isGoogleConnected ? 'rgba(48, 209, 88, 0.2)' : 'rgba(255, 159, 10, 0.2)'),
-              color: isGoogleConnected ? '#30d158' : '#ff9f0a',
-              gap: '6px'
+              background: 'rgba(0, 113, 227, 0.08)',
+              border: '1px solid rgba(0, 113, 227, 0.25)',
+              color: '#64d2ff',
+              gap: '7px'
             }}>
-              <Info size={13} style={{ flexShrink: 0 }} />
+              <Info size={14} style={{ flexShrink: 0 }} />
               <span>
                 {isGoogleConnected 
-                  ? `Google Workspace active (${googleEmail}) — will dispatch live API call.`
-                  : `Google Workspace disconnected — connect via header to dispatch real Gmail/Calendar events.`}
+                  ? `Live direct dispatch disabled for safety. Approving will create an editable draft in your Gmail account (${googleEmail}) without sending.`
+                  : `Google Workspace disconnected — connect via header to save drafts directly into Gmail.`}
               </span>
             </div>
 
@@ -329,14 +336,15 @@ export const HITLGatewayModal: React.FC<HITLGatewayModalProps> = ({
               </button>
 
               <button 
-                onClick={() => onApprove(currentAction.actionId, { delivery_mode: emailDeliveryMode, body: editedBody })}
-                className="btn-green"
+                onClick={() => onApprove(currentAction.actionId, { delivery_mode: 'draft', body: editedBody })}
+                className="btn-primary"
+                style={{ background: '#0071e3', color: '#ffffff', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
               >
-                <CheckCircle2 size={14} />
+                <FileEdit size={14} />
                 <span>
-                  {currentAction.actionType === 'SEND_EMAIL' && emailDeliveryMode === 'draft' 
-                    ? 'Create Gmail Draft' 
-                    : 'Approve & Dispatch'}
+                  {currentAction.actionType === 'SEND_EMAIL'
+                    ? 'Save as Gmail Draft' 
+                    : 'Approve Action'}
                 </span>
               </button>
             </div>

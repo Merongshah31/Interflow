@@ -41,101 +41,62 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="top-header">
       {/* Sidebar Toggle & Breadcrumb */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div className="header-left">
         <button
           onClick={onToggleSidebar}
           className="btn-sidebar-toggle"
           title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
-          style={{
-            background: isSidebarOpen ? 'transparent' : 'rgba(255, 255, 255, 0.08)',
-            border: '1px solid ' + (isSidebarOpen ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.16)'),
-            color: isSidebarOpen ? '#86868b' : '#f5f5f7',
-            cursor: 'pointer',
-            width: '30px',
-            height: '30px',
-            borderRadius: '7px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'all 0.15s ease'
-          }}
+          aria-label="Toggle navigation menu"
         >
-          {isSidebarOpen ? <PanelLeftClose size={15} /> : <PanelLeft size={15} />}
+          {isSidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />}
         </button>
 
-        <span style={{ fontSize: '0.82rem', color: '#86868b', fontWeight: '400' }}>
-          Workspace
-        </span>
-        <span style={{ fontSize: '0.82rem', color: '#48484a' }}>/</span>
-        <span style={{ fontSize: '0.82rem', color: '#f5f5f7', fontWeight: '500' }}>
-          {activeTab === 'map' ? 'Company Map' : 'Dashboard'}
-        </span>
+        <div className="header-breadcrumbs">
+          <span className="header-breadcrumb-root hide-on-mobile">Workspace</span>
+          <span className="header-breadcrumb-sep hide-on-mobile">/</span>
+          <span className="header-breadcrumb-active">
+            {activeTab === 'map' ? 'Company Map' : 'Dashboard'}
+          </span>
+        </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-        {/* Google Workspace Connection Pill */}
-        <GoogleConnectButton 
-          userId={user?.user_id} 
-          userEmail={user?.email} 
-          onStatusChange={onGoogleStatusChange} 
-        />
+      <div className="header-right">
+        {/* Google Workspace Connection Pill (Auto-adapts on mobile) */}
+        <div className="header-google-btn-wrap hide-on-xs">
+          <GoogleConnectButton 
+            userId={user?.user_id} 
+            userEmail={user?.email} 
+            onStatusChange={onGoogleStatusChange} 
+          />
+        </div>
 
         {/* Apple-style Pending HITL Pill */}
         {pendingHITLCount > 0 && (
           <button
             onClick={onOpenHITL}
-            style={{
-              background: 'rgba(255, 69, 58, 0.12)',
-              border: '1px solid rgba(255, 69, 58, 0.24)',
-              color: '#ff453a',
-              borderRadius: '980px',
-              padding: '4px 12px',
-              fontSize: '0.74rem',
-              fontWeight: '500',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              transition: 'all 0.15s ease'
-            }}
+            className="header-hitl-pill"
+            aria-label={`Action Required: ${pendingHITLCount} pending`}
           >
-            <ShieldAlert size={13} />
-            <span>Action Required ({pendingHITLCount})</span>
+            <ShieldAlert size={14} color="#ff453a" />
+            <span className="hide-on-mobile">Action Required ({pendingHITLCount})</span>
+            <span className="show-on-mobile" style={{ fontWeight: 700 }}>{pendingHITLCount}</span>
           </button>
         )}
 
         {/* Minimalist Notification Bell */}
         <div style={{ position: 'relative' }}>
-          <div
+          <button
+            type="button"
             onClick={handleToggleNotifications}
-            style={{
-              cursor: 'pointer',
-              width: '30px',
-              height: '30px',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: isNotificationOpen ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.04)',
-              border: '1px solid ' + (isNotificationOpen ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.08)'),
-              transition: 'all 0.15s ease'
-            }}
+            className="header-icon-btn"
             title="Notifications, updates & feedback"
+            aria-label="Notifications"
           >
-            <Bell size={14} color={isNotificationOpen ? '#f5f5f7' : '#86868b'} />
+            <Bell size={15} color={isNotificationOpen ? '#f5f5f7' : '#86868b'} />
             {hasUnread && (
-              <span style={{
-                position: 'absolute',
-                top: '6px',
-                right: '6px',
-                width: '6px',
-                height: '6px',
-                borderRadius: '50%',
-                background: '#ff453a',
-                boxShadow: '0 0 6px rgba(255, 69, 58, 0.8)'
-              }} />
+              <span className="header-notif-indicator" />
             )}
-          </div>
+          </button>
 
           {/* Interactive Notification Dropdown Menu */}
           <NotificationDropdown
@@ -147,79 +108,29 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Dynamic User Profile Pill */}
         <div
           onClick={onOpenProfileModal}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '9px',
-            padding: '4px 8px 4px 4px',
-            borderRadius: '980px',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-            background: 'rgba(255, 255, 255, 0.03)',
-            border: '1px solid rgba(255, 255, 255, 0.08)'
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.07)';
-            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.16)';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
-            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-          }}
+          className="header-profile-pill"
           title="Click to edit profile settings"
+          role="button"
+          tabIndex={0}
         >
           {user?.avatar_url ? (
             <img
               src={user.avatar_url}
               alt={user.name || 'User'}
               referrerPolicy="no-referrer"
-              style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: '50%',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                objectFit: 'cover'
-              }}
+              className="header-avatar-img"
             />
           ) : (
-            <div style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #0071e3, #5e5ce6)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 600,
-              fontSize: '0.74rem',
-              color: '#ffffff'
-            }}>
+            <div className="header-avatar-fallback">
               {user?.name ? user.name[0].toUpperCase() : 'U'}
             </div>
           )}
 
-          <div>
-            <div style={{
-              fontSize: '0.78rem',
-              fontWeight: 500,
-              color: '#f5f5f7',
-              lineHeight: 1.2,
-              maxWidth: '120px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}>
+          <div className="header-user-meta hide-on-mobile">
+            <div className="header-user-name">
               {user?.name || 'Student'}
             </div>
-            <div style={{
-              fontSize: '0.64rem',
-              color: '#86868b',
-              lineHeight: 1.2,
-              maxWidth: '120px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}>
+            <div className="header-user-sub">
               {user?.headline || 'Software Engineering'}
             </div>
           </div>

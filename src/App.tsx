@@ -11,6 +11,8 @@ import type { PendingAction } from './components/HITLGatewayModal';
 import { AuthGate } from './components/AuthGate';
 import type { UserProfile } from './components/AuthGate';
 import { ProfileEditModal } from './components/ProfileEditModal';
+import { BottomNav } from './components/BottomNav';
+import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { API_BASE_URL } from './config';
 
 const INITIAL_INTERNSHIPS: Internship[] = [];
@@ -28,9 +30,25 @@ export const App: React.FC = () => {
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
 
   const [activeTab, setActiveTab] = useState<NavTabType>('pipeline');
-  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(() => {
+    if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+      return false;
+    }
+    return true;
+  });
   const [showHITLModal, setShowHITLModal] = useState<boolean>(false);
   const [internships, setInternships] = useState<Internship[]>(INITIAL_INTERNSHIPS);
+
+  // Register PWA Service Worker
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch((err) => {
+          console.warn('[PWA] Service Worker registration failed:', err);
+        });
+      });
+    }
+  }, []);
 
   // Keyboard shortcut: Cmd+B / Ctrl+B to toggle sidebar
   useEffect(() => {
@@ -49,13 +67,14 @@ export const App: React.FC = () => {
     {
       actionId: 'act-gmail-grab',
       actionType: 'SEND_EMAIL',
-      title: 'Gmail Outreach: Grab Malaysia Recruiter',
-      description: 'Send tailored email introduction highlighting Go, Microservices & Distributed Systems projects',
+      title: 'Gmail Outreach: Grab Malaysia Recruiter (Draft)',
+      description: 'Save tailored email draft in Gmail highlighting Go, Microservices & Distributed Systems projects',
       recipient: 'recruitment.my@grab.com',
       payload: {
         subject: 'Software Engineer Intern Application',
         body: 'Hi Grab Malaysia University Relations,\n\nI am writing to express my enthusiastic interest in the Software Engineer Intern (Core Services) opening. Having built distributed microservices in Go and backend platforms, I would love the opportunity to contribute to Grab tech infrastructure.\n\nBest regards,\nApplicant',
-        apiEndpoint: 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send'
+        apiEndpoint: 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+        delivery_mode: 'draft'
       }
     }
   ]);
@@ -86,7 +105,7 @@ export const App: React.FC = () => {
             role: item.role,
             status: item.status,
             deadline: item.deadline || '10/30/2026',
-            matchScore: item.match_score ?? 85,
+            matchScore: (typeof item.match_score === 'number' && item.match_score > 0) ? item.match_score : 85,
             matchTier: item.match_tier || 'High Match',
             aiReadiness: item.ai_readiness || 'Skills Ready',
             jobUrl: item.job_url || 'https://www.jobstreet.com.my',
@@ -298,14 +317,15 @@ export const App: React.FC = () => {
     const newAction: PendingAction = {
       actionId: `act-${Date.now()}`,
       actionType: 'SEND_EMAIL',
-      title: `Gmail Outreach: ${item.company}`,
+      title: `Gmail Outreach: ${item.company} (Draft)`,
       description: `Draft tailored cold application email for ${item.role}`,
       recipient: recipientEmail,
       payload: {
         subject: `Application for ${item.role} - ${applicantName}`,
         body: `Hi ${item.company} Recruiting,\n\nI am submitting my application for ${item.role}. My technical profile matches ${item.matchScore}% of target requirements.\n\nBest regards,\n${applicantName}`,
         apiEndpoint: 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
-        recipient: recipientEmail
+        recipient: recipientEmail,
+        delivery_mode: 'draft'
       }
     };
     setPendingActions([newAction, ...pendingActions]);
@@ -344,7 +364,10 @@ export const App: React.FC = () => {
       await fetch(`${API_BASE_URL}/api/hitl/approve/${actionId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(options || {})
+        body: JSON.stringify({
+          ...(options || {}),
+          delivery_mode: 'draft' // Direct send disabled for safety
+        })
       });
     } catch (e) {
       console.error('Approve HITL error:', e);
@@ -445,6 +468,19 @@ export const App: React.FC = () => {
             />
           )}
         </main>
+
+        {/* PWA Add to Home Screen Banner */}
+        <PWAInstallPrompt />
+
+        {/* Mobile Bottom Navigation Bar (Active on screen width <= 768px) */}
+        <BottomNav
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          pendingHITLCount={pendingActions.length}
+          onOpenHITL={() => setShowHITLModal(true)}
+          user={currentUser}
+          onOpenProfile={() => setShowProfileModal(true)}
+        />
       </div>
     </div>
   );

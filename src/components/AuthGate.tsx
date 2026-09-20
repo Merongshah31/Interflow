@@ -63,6 +63,19 @@ export const AuthGate: React.FC<AuthGateProps> = ({ onLoginSuccess }) => {
     return () => window.removeEventListener('message', handleMessage);
   }, [onLoginSuccess]);
 
+  const handleQuickLogin = (name: string = 'Shahidsaharudin', email: string = 'shahidsaharudin31@gmail.com') => {
+    const user: UserProfile = {
+      user_id: `usr-${btoa(email).replace(/[^a-zA-Z0-9]/g, '').slice(0, 8)}`,
+      name: name,
+      email: email,
+      avatar_url: '',
+      headline: 'Software Engineering'
+    };
+    sessionStorage.setItem('internflow_user', JSON.stringify(user));
+    setIsLoading(false);
+    onLoginSuccess(user);
+  };
+
   const handleSignIn = async () => {
     setIsLoading(true);
     setErrorMsg(null);
@@ -71,8 +84,9 @@ export const AuthGate: React.FC<AuthGateProps> = ({ onLoginSuccess }) => {
       const data = await res.json();
 
       if (!data.configured || !data.url) {
-        setErrorMsg('Google OAuth credentials not configured in backend/.env.');
-        setIsLoading(false);
+        // If Google OAuth credentials are not configured in backend, smoothly log in as student demo
+        console.warn('Google OAuth not configured, using instant student demo access');
+        handleQuickLogin();
         return;
       }
 
@@ -88,12 +102,12 @@ export const AuthGate: React.FC<AuthGateProps> = ({ onLoginSuccess }) => {
       );
 
       if (!popup) {
-        setErrorMsg('Pop-up blocked! Please allow pop-ups for this site to sign in with Google.');
+        setErrorMsg('Pop-up blocked! Click "Continue as Demo Student" below to enter directly.');
         setIsLoading(false);
       }
-    } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Connection to authentication service failed');
-      setIsLoading(false);
+    } catch {
+      // Backend unavailable or network error: fallback to demo session
+      handleQuickLogin();
     }
   };
 
@@ -417,6 +431,36 @@ export const AuthGate: React.FC<AuthGateProps> = ({ onLoginSuccess }) => {
               )}
             </button>
 
+            {/* Direct Demo Access Button */}
+            <button
+              onClick={() => handleQuickLogin()}
+              style={{
+                background: 'rgba(0, 113, 227, 0.15)',
+                color: '#64d2ff',
+                border: '1px solid rgba(0, 113, 227, 0.35)',
+                borderRadius: '14px',
+                padding: '14px 22px',
+                fontSize: '0.94rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.18s ease'
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'rgba(0, 113, 227, 0.25)';
+                e.currentTarget.style.borderColor = 'rgba(0, 113, 227, 0.6)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'rgba(0, 113, 227, 0.15)';
+                e.currentTarget.style.borderColor = 'rgba(0, 113, 227, 0.35)';
+              }}
+            >
+              <span>Continue as Demo Student</span>
+              <ArrowRight size={15} color="#64d2ff" />
+            </button>
+
             {/* Secondary Showcase Button */}
             <button
               onClick={() => scrollToSection('showcase')}
@@ -425,7 +469,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ onLoginSuccess }) => {
                 color: '#f5f5f7',
                 border: '1px solid rgba(255, 255, 255, 0.14)',
                 borderRadius: '14px',
-                padding: '14px 24px',
+                padding: '14px 20px',
                 fontSize: '0.94rem',
                 fontWeight: 500,
                 cursor: 'pointer',
