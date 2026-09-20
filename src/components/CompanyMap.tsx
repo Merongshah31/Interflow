@@ -5,7 +5,10 @@ import {
   MapPin,
   Search,
   RotateCw,
-  Clock
+  Clock,
+  Compass,
+  Briefcase,
+  X
 } from 'lucide-react';
 import type { Internship } from './PipelineTable';
 
@@ -32,6 +35,13 @@ interface CompanyMapProps {
   isRetrying?: boolean;
   lastSyncedAt?: Date;
 }
+
+// Strict geographic bounds covering Peninsular and East Malaysia exclusively
+const MALAYSIA_BOUNDS: L.LatLngBoundsLiteral = [
+  [0.8, 99.5],  // South-West: covers southern Johor / Singapore strait / Sarawak border
+  [7.5, 119.5]  // North-East: covers northern Perlis / Kedah / Kelantan / tip of Sabah (Kudat)
+];
+const MALAYSIA_CENTER: L.LatLngTuple = [4.2105, 101.9758];
 
 const resolveCoordinates = (
   location: string = '',
@@ -139,6 +149,8 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
+  const markersMapRef = useRef<Map<string, L.Marker>>(new Map());
+  const sidebarListRef = useRef<HTMLDivElement | null>(null);
 
   // Derive map companies directly from live scout/pipeline internships
   const companies: MapCompanyLocation[] = React.useMemo(() => {
@@ -178,30 +190,61 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
   const [minScore, setMinScore] = useState<number>(0);
   const [activeCluster, setActiveCluster] = useState<string>('all');
 
-  // Initialize Leaflet Map Centered on Malaysia (Klang Valley)
+  // Initialize Leaflet Map Centered and Bound to Malaysia
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
     if (!mapInstanceRef.current) {
       const map = L.map(mapContainerRef.current, {
-        center: [3.1390, 101.6869],
-        zoom: 11,
+        center: MALAYSIA_CENTER,
+        zoom: 6.5,
+        minZoom: 6,
+        maxZoom: 18,
+        maxBounds: MALAYSIA_BOUNDS,
+        maxBoundsViscosity: 1.0, // Strictly locks camera within Malaysia bounds
         zoomControl: false,
         attributionControl: false
       });
 
-      // OpenStreetMap clean tile layer without watermark
+      // Clean OpenStreetMap tile layer bounded to Malaysia
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
+        maxZoom: 18,
+        minZoom: 6,
+        bounds: MALAYSIA_BOUNDS,
         attribution: '&copy; OpenStreetMap contributors'
       }).addTo(map);
 
       // Custom Zoom control at bottom right
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
+      // Outer Boundary Mask Polygon: Dim ocean & surrounding countries to spotlight Malaysia
+      const worldMask: [number, number][][] = [
+        [
+          [-85, -180],
+          [-85, 180],
+          [85, 180],
+          [85, -180]
+        ],
+        [
+          [0.8, 99.5],
+          [7.5, 99.5],
+          [7.5, 119.5],
+          [0.8, 119.5]
+        ]
+      ];
+      L.polygon(worldMask, {
+        color: 'rgba(41, 151, 255, 0.35)',
+        weight: 1.5,
+        dashArray: '4, 4',
+        fillColor: '#0a0a0c',
+        fillOpacity: 0.32,
+        interactive: false
+      }).addTo(map);
+
       mapInstanceRef.current = map;
     }
 
+    // Auto-invalidate size on viewport changes
     let resizeObserver: ResizeObserver | null = null;
     if (mapContainerRef.current && typeof window.ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver(() => {
@@ -210,12 +253,12 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
       resizeObserver.observe(mapContainerRef.current);
     }
 
-    const timer = setTimeout(() => {
-      mapInstanceRef.current?.invalidateSize();
-    }, 250);
+    const t1 = setTimeout(() => mapInstanceRef.current?.invalidateSize(), 100);
+    const t2 = setTimeout(() => mapInstanceRef.current?.invalidateSize(), 350);
 
     return () => {
-      clearTimeout(timer);
+      clearTimeout(t1);
+      clearTimeout(t2);
       resizeObserver?.disconnect();
     };
   }, []);
@@ -227,6 +270,7 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
 
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
+    markersMapRef.current.clear();
 
     const filtered = companies.filter(c => {
       const matchSearch =
@@ -257,7 +301,7 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
           color: #ffffff;
           font-weight: 700;
           font-size: 11px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+          box-shadow: 0 4px 14px rgba(0,0,0,0.6);
           cursor: pointer;
           transition: transform 0.15s ease, box-shadow 0.15s ease;
         ">
@@ -275,7 +319,6 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
       });
 
       const marker = L.marker([c.lat, c.lng], { icon: customIcon }).addTo(map);
-      (marker as unknown as { _companyId: string })._companyId = c.id;
 
       // Informative Apple-styled hover tooltip
       const tooltipHtml = `
@@ -347,8 +390,21 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
         offset: [0, -18]
       });
 
+      // Interaction Sync: Clicking marker scrolls corresponding sidebar card into view
+      marker.on('click', () => {
+        setSelectedCompanyId(c.id);
+        const cardEl = document.getElementById(`company-card-${c.id}`);
+        if (cardEl) {
+          cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      });
+
       marker.on('popupopen', () => {
         setSelectedCompanyId(c.id);
+        const cardEl = document.getElementById(`company-card-${c.id}`);
+        if (cardEl) {
+          cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
         const outreachBtn = document.getElementById(`btn-popup-outreach-${c.id}`);
         if (outreachBtn) {
           outreachBtn.onclick = () => {
@@ -364,36 +420,45 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
       });
 
       markersRef.current.push(marker);
+      markersMapRef.current.set(c.id, marker);
     });
 
-    // Automatically fit map bounds so all loaded markers across Malaysia are visible
+    // Automatically fit map bounds gently within Malaysia bounds
     if (markersRef.current.length > 0) {
       const group = L.featureGroup(markersRef.current);
       const bounds = group.getBounds();
       if (bounds.isValid()) {
-        map.fitBounds(bounds.pad(0.12), { maxZoom: 13 });
+        map.fitBounds(bounds.pad(0.12), { maxZoom: 12, animate: true });
       }
     }
   }, [companies, searchQuery, workModeFilter, minScore, onTriggerOutreach]);
 
+  // Interaction Sync: Clicking sidebar job card smoothly flyTo marker and opens popup
   const handleSelectCompanyFromList = (c: MapCompanyLocation) => {
     setSelectedCompanyId(c.id);
     const map = mapInstanceRef.current;
     if (map) {
-      setTimeout(() => {
-        map.invalidateSize();
-        map.setView([c.lat, c.lng], 13, { animate: true });
-        const marker = markersRef.current.find(m => (m as unknown as { _companyId?: string })._companyId === c.id);
-        if (marker) {
+      map.flyTo([c.lat, c.lng], 14, {
+        animate: true,
+        duration: 1.2
+      });
+      const marker = markersMapRef.current.get(c.id);
+      if (marker) {
+        setTimeout(() => {
           marker.openPopup();
-        }
-      }, 60);
+        }, 350);
+      }
     }
   };
 
   const jumpToCluster = (clusterKey: string, lat: number, lng: number, zoom: number) => {
     setActiveCluster(clusterKey);
-    mapInstanceRef.current?.setView([lat, lng], zoom, { animate: true });
+    mapInstanceRef.current?.flyTo([lat, lng], zoom, { animate: true, duration: 1.0 });
+  };
+
+  const resetToMalaysia = () => {
+    setActiveCluster('all');
+    mapInstanceRef.current?.flyTo(MALAYSIA_CENTER, 6.5, { animate: true, duration: 1.0 });
   };
 
   const filteredList = companies.filter(c => {
@@ -407,65 +472,138 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%', boxSizing: 'border-box' }}>
+    <div className="company-map-container">
       
-      {/* Top Controls Filter Bar */}
-      <div className="glass-panel" style={{ padding: '16px 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+      {/* 2. Dedicated Left Sidebar: Job Listings with Independent Scroll */}
+      <aside className="company-map-sidebar">
+        
+        {/* Pinned Header Controls & Filter Section */}
+        <div className="company-map-sidebar-header">
           
-          {/* Header Title */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{
-              width: '34px',
-              height: '34px',
-              borderRadius: '8px',
-              background: 'rgba(255, 255, 255, 0.08)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <MapPin size={18} color="#f5f5f7" />
+          {/* Top Title & Status Row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '7px',
+                background: 'rgba(0, 113, 227, 0.16)',
+                border: '1px solid rgba(41, 151, 255, 0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <MapPin size={15} color="#2997ff" />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <h2 style={{ fontSize: '0.95rem', fontWeight: '600', color: '#f5f5f7', letterSpacing: '-0.02em', margin: 0 }}>
+                    Tech Hubs Map
+                  </h2>
+                  <span style={{
+                    fontSize: '0.66rem',
+                    fontWeight: '600',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    color: '#a1a1a6',
+                    padding: '1px 6px',
+                    borderRadius: '980px',
+                    border: '1px solid var(--border-subtle)'
+                  }}>
+                    {filteredList.length}
+                  </span>
+                </div>
+                <p style={{ fontSize: '0.68rem', color: '#86868b', margin: '1px 0 0 0' }}>
+                  Malaysia geospatial intelligence
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: '600', color: '#f5f5f7', letterSpacing: '-0.02em', margin: 0 }}>
-                Malaysia Tech Hubs Map
-              </h2>
-              <p style={{ fontSize: '0.78rem', color: '#86868b', margin: '2px 0 0 0' }}>
-                Geospatial visualization of software engineering opportunities in Malaysia.
-              </p>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {lastSyncedAt && (
+                <div
+                  title={`Last synchronized: ${lastSyncedAt.toLocaleTimeString()}`}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '0.66rem',
+                    color: '#86868b',
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid var(--border-color)',
+                    padding: '2px 6px',
+                    borderRadius: '980px'
+                  }}
+                >
+                  <Clock size={10} color="#30d158" />
+                  <span>{lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+              )}
+
+              {onRetry && (
+                <button
+                  onClick={onRetry}
+                  className="btn-secondary"
+                  disabled={isRetrying}
+                  title="Refresh / sync pipeline"
+                  style={{ padding: '3px 8px', fontSize: '0.68rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <RotateCw size={11} className={isRetrying ? 'spin-anim' : ''} />
+                  <span>{isRetrying ? 'Sync...' : 'Sync'}</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Search & Apple Segmented Controls Bar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            <div style={{ position: 'relative' }}>
-              <Search size={13} color="#86868b" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-              <input
-                type="text"
-                placeholder="Search KL, Penang, company..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+          {/* Search Input Bar */}
+          <div style={{ position: 'relative', width: '100%' }}>
+            <Search size={13} color="#86868b" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+            <input
+              type="text"
+              placeholder="Search company, role, city (KL, Penang...)"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '6px 28px 6px 30px',
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid var(--border-color)',
+                color: '#f5f5f7',
+                fontSize: '0.76rem',
+                outline: 'none'
+              }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
                 style={{
-                  padding: '6px 14px 6px 32px',
-                  borderRadius: '980px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid var(--border-color)',
-                  color: '#f5f5f7',
-                  fontSize: '0.78rem',
-                  width: '200px',
-                  outline: 'none'
+                  position: 'absolute',
+                  right: '8px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#86868b',
+                  display: 'flex',
+                  alignItems: 'center'
                 }}
-              />
-            </div>
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
 
-            {/* Apple macOS Segmented Control */}
+          {/* Filter Pills: Work Mode & Min Fit Score */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+            {/* Work Mode Segmented Filter */}
             <div style={{
               display: 'flex',
               gap: '2px',
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: 'rgba(255, 255, 255, 0.04)',
               padding: '2px',
-              borderRadius: '980px',
+              borderRadius: '7px',
               border: '1px solid var(--border-color)'
             }}>
               {(['All', 'Hybrid', 'On-site', 'Remote'] as const).map(mode => (
@@ -473,10 +611,10 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
                   key={mode}
                   onClick={() => setWorkModeFilter(mode)}
                   style={{
-                    padding: '3px 10px',
-                    borderRadius: '980px',
+                    padding: '2px 7px',
+                    borderRadius: '5px',
                     border: 'none',
-                    fontSize: '0.72rem',
+                    fontSize: '0.68rem',
                     fontWeight: '500',
                     cursor: 'pointer',
                     background: workModeFilter === mode ? 'rgba(255, 255, 255, 0.14)' : 'transparent',
@@ -489,9 +627,9 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
               ))}
             </div>
 
-            {/* Min Match Score Filter */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: '#86868b' }}>
-              <span>Min Fit: <strong style={{ color: '#f5f5f7' }}>{minScore === 0 ? 'All' : `${minScore}%+`}</strong></span>
+            {/* Min Match Fit Slider */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.68rem', color: '#86868b' }}>
+              <span>Fit: <strong style={{ color: '#f5f5f7' }}>{minScore === 0 ? 'All' : `${minScore}%+`}</strong></span>
               <input
                 type="range"
                 min="0"
@@ -499,277 +637,303 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
                 step="10"
                 value={minScore}
                 onChange={(e) => setMinScore(Number(e.target.value))}
-                style={{ width: '60px', accentColor: '#0071e3', cursor: 'pointer' }}
+                style={{ width: '52px', accentColor: '#0071e3', cursor: 'pointer' }}
               />
             </div>
+          </div>
 
-            {lastSyncedAt && (
+          {/* Regional Quick Jump Clusters (Horizontal Scroll) */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            overflowX: 'auto',
+            paddingBottom: '2px',
+            scrollbarWidth: 'none'
+          }}>
+            <button
+              onClick={() => jumpToCluster('all', 4.2105, 101.9758, 6.5)}
+              style={{
+                flexShrink: 0,
+                padding: '2px 8px',
+                borderRadius: '980px',
+                border: activeCluster === 'all' ? '1px solid rgba(41, 151, 255, 0.5)' : '1px solid var(--border-subtle)',
+                background: activeCluster === 'all' ? 'rgba(0, 113, 227, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                color: activeCluster === 'all' ? '#64d2ff' : '#86868b',
+                fontSize: '0.68rem',
+                cursor: 'pointer'
+              }}
+            >
+              All Malaysia
+            </button>
+
+            <button
+              onClick={() => jumpToCluster('kl', 3.1390, 101.6869, 11)}
+              style={{
+                flexShrink: 0,
+                padding: '2px 8px',
+                borderRadius: '980px',
+                border: activeCluster === 'kl' ? '1px solid rgba(41, 151, 255, 0.5)' : '1px solid var(--border-subtle)',
+                background: activeCluster === 'kl' ? 'rgba(0, 113, 227, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                color: activeCluster === 'kl' ? '#64d2ff' : '#86868b',
+                fontSize: '0.68rem',
+                cursor: 'pointer'
+              }}
+            >
+              Klang Valley / PJ
+            </button>
+
+            <button
+              onClick={() => jumpToCluster('cyberjaya', 2.9213, 101.6559, 13)}
+              style={{
+                flexShrink: 0,
+                padding: '2px 8px',
+                borderRadius: '980px',
+                border: activeCluster === 'cyberjaya' ? '1px solid rgba(41, 151, 255, 0.5)' : '1px solid var(--border-subtle)',
+                background: activeCluster === 'cyberjaya' ? 'rgba(0, 113, 227, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                color: activeCluster === 'cyberjaya' ? '#64d2ff' : '#86868b',
+                fontSize: '0.68rem',
+                cursor: 'pointer'
+              }}
+            >
+              Cyberjaya
+            </button>
+
+            <button
+              onClick={() => jumpToCluster('penang', 5.3056, 100.2878, 12)}
+              style={{
+                flexShrink: 0,
+                padding: '2px 8px',
+                borderRadius: '980px',
+                border: activeCluster === 'penang' ? '1px solid rgba(41, 151, 255, 0.5)' : '1px solid var(--border-subtle)',
+                background: activeCluster === 'penang' ? 'rgba(0, 113, 227, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                color: activeCluster === 'penang' ? '#64d2ff' : '#86868b',
+                fontSize: '0.68rem',
+                cursor: 'pointer'
+              }}
+            >
+              Penang (Bayan Lepas / Batu Kawan)
+            </button>
+
+            <button
+              onClick={() => jumpToCluster('kedah', 5.4200, 100.5800, 12)}
+              style={{
+                flexShrink: 0,
+                padding: '2px 8px',
+                borderRadius: '980px',
+                border: activeCluster === 'kedah' ? '1px solid rgba(41, 151, 255, 0.5)' : '1px solid var(--border-subtle)',
+                background: activeCluster === 'kedah' ? 'rgba(0, 113, 227, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                color: activeCluster === 'kedah' ? '#64d2ff' : '#86868b',
+                fontSize: '0.68rem',
+                cursor: 'pointer'
+              }}
+            >
+              Kedah (Kulim)
+            </button>
+
+            <button
+              onClick={() => jumpToCluster('johor', 1.4927, 103.7414, 12)}
+              style={{
+                flexShrink: 0,
+                padding: '2px 8px',
+                borderRadius: '980px',
+                border: activeCluster === 'johor' ? '1px solid rgba(41, 151, 255, 0.5)' : '1px solid var(--border-subtle)',
+                background: activeCluster === 'johor' ? 'rgba(0, 113, 227, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                color: activeCluster === 'johor' ? '#64d2ff' : '#86868b',
+                fontSize: '0.68rem',
+                cursor: 'pointer'
+              }}
+            >
+              Johor (JB)
+            </button>
+          </div>
+
+        </div>
+
+        {/* Scrollable Job Cards List */}
+        <div className="company-map-sidebar-list" ref={sidebarListRef}>
+          {filteredList.map(c => {
+            const isSelected = selectedCompanyId === c.id;
+            return (
               <div
-                title={`Last synchronized: ${lastSyncedAt.toLocaleTimeString()}`}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  fontSize: '0.7rem',
-                  color: '#86868b',
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  border: '1px solid var(--border-color)',
-                  padding: '3px 8px',
-                  borderRadius: '980px'
-                }}
+                key={c.id}
+                id={`company-card-${c.id}`}
+                className={`company-map-card ${isSelected ? 'active' : ''}`}
+                onClick={() => handleSelectCompanyFromList(c)}
               >
-                <Clock size={11} color="#30d158" />
-                <span>Updated: <strong style={{ color: '#f5f5f7', fontWeight: '500' }}>{lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong></span>
-              </div>
-            )}
-
-            {onRetry && (
-              <button
-                onClick={onRetry}
-                className="btn-secondary"
-                disabled={isRetrying}
-                title="Refresh / retry sync with backend database"
-                style={{ padding: '4px 12px', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
-              >
-                <RotateCw size={12} className={isRetrying ? 'spin-anim' : ''} />
-                <span>{isRetrying ? 'Syncing...' : 'Retry'}</span>
-              </button>
-            )}
-
-          </div>
-
-        </div>
-
-        {/* Regional Quick Jump Pills */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--border-color)', overflowX: 'auto' }}>
-          <span style={{ fontSize: '0.7rem', color: '#86868b', fontWeight: '500', marginRight: '4px' }}>Clusters:</span>
-          
-          <button
-            onClick={() => jumpToCluster('kl', 3.1390, 101.6869, 11)}
-            style={{
-              padding: '3px 10px',
-              borderRadius: '980px',
-              border: activeCluster === 'kl' ? '1px solid rgba(255,255,255,0.2)' : '1px solid var(--border-subtle)',
-              background: activeCluster === 'kl' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.03)',
-              color: activeCluster === 'kl' ? '#fff' : '#86868b',
-              fontSize: '0.72rem',
-              cursor: 'pointer'
-            }}
-          >
-            Klang Valley (KL / Bangsar South / PJ)
-          </button>
-
-          <button
-            onClick={() => jumpToCluster('cyberjaya', 2.9213, 101.6559, 13)}
-            style={{
-              padding: '3px 10px',
-              borderRadius: '980px',
-              border: activeCluster === 'cyberjaya' ? '1px solid rgba(255,255,255,0.2)' : '1px solid var(--border-subtle)',
-              background: activeCluster === 'cyberjaya' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.03)',
-              color: activeCluster === 'cyberjaya' ? '#fff' : '#86868b',
-              fontSize: '0.72rem',
-              cursor: 'pointer'
-            }}
-          >
-            Cyberjaya
-          </button>
-
-          <button
-            onClick={() => jumpToCluster('penang', 5.3056, 100.2878, 12)}
-            style={{
-              padding: '3px 10px',
-              borderRadius: '980px',
-              border: activeCluster === 'penang' ? '1px solid rgba(255,255,255,0.2)' : '1px solid var(--border-subtle)',
-              background: activeCluster === 'penang' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.03)',
-              color: activeCluster === 'penang' ? '#fff' : '#86868b',
-              fontSize: '0.72rem',
-              cursor: 'pointer'
-            }}
-          >
-            Penang (Bayan Lepas / Batu Kawan)
-          </button>
-
-          <button
-            onClick={() => jumpToCluster('kedah', 5.4200, 100.5800, 12)}
-            style={{
-              padding: '3px 10px',
-              borderRadius: '980px',
-              border: activeCluster === 'kedah' ? '1px solid rgba(255,255,255,0.2)' : '1px solid var(--border-subtle)',
-              background: activeCluster === 'kedah' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.03)',
-              color: activeCluster === 'kedah' ? '#fff' : '#86868b',
-              fontSize: '0.72rem',
-              cursor: 'pointer'
-            }}
-          >
-            Kedah (Kulim Hi-Tech)
-          </button>
-
-          <button
-            onClick={() => jumpToCluster('all', 4.2105, 101.9758, 7)}
-            style={{
-              padding: '3px 10px',
-              borderRadius: '980px',
-              border: activeCluster === 'all' ? '1px solid rgba(255,255,255,0.2)' : '1px solid var(--border-subtle)',
-              background: activeCluster === 'all' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.03)',
-              color: activeCluster === 'all' ? '#fff' : '#86868b',
-              fontSize: '0.72rem',
-              cursor: 'pointer'
-            }}
-          >
-            All Malaysia
-          </button>
-        </div>
-
-      </div>
-
-      {/* Main Map Viewport & Drawer Layout */}
-      <div className="company-map-layout">
-        
-        {/* Left Side: Company Quick Navigation List */}
-        <div className="glass-panel map-list-col" style={{ padding: '16px', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#f5f5f7' }}>
-              Malaysian Tech Hubs ({filteredList.length})
-            </span>
-            <span style={{ fontSize: '0.68rem', color: '#86868b' }}>
-              Click to pinpoint
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', overflowY: 'auto', flex: 1, paddingRight: '4px' }}>
-            {filteredList.map(c => {
-              const isSelected = selectedCompanyId === c.id;
-              return (
-                <div
-                  key={c.id}
-                  onClick={() => handleSelectCompanyFromList(c)}
-                  style={{
-                    padding: '10px 12px',
-                    borderRadius: '10px',
-                    background: isSelected ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.02)',
-                    border: isSelected ? '1px solid rgba(255, 255, 255, 0.14)' : '1px solid var(--border-subtle)',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{
-                        width: '22px',
-                        height: '22px',
-                        borderRadius: '6px',
-                        background: c.companyLogoBg || '#1c1c1e',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '0.7rem',
-                        fontWeight: '700',
-                        color: '#fff'
-                      }}>
-                        {c.companyLogoText || c.company[0]}
-                      </div>
-                      <span style={{ fontSize: '0.82rem', fontWeight: '600', color: '#f5f5f7' }}>
-                        {c.company}
-                      </span>
-                    </div>
-
-                    <span style={{
-                      fontSize: '0.68rem',
-                      padding: '2px 7px',
-                      borderRadius: '980px',
-                      background: c.match_score >= 90 ? 'rgba(48, 209, 88, 0.14)' : 'rgba(255, 159, 10, 0.14)',
-                      color: c.match_score >= 90 ? '#30d158' : '#ff9f0a',
-                      fontWeight: '600'
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '6px',
+                      background: c.companyLogoBg || '#1c1c1e',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.72rem',
+                      fontWeight: '700',
+                      color: '#fff'
                     }}>
-                      {c.match_score}%
+                      {c.companyLogoText || c.company[0]}
+                    </div>
+                    <span style={{ fontSize: '0.82rem', fontWeight: '600', color: '#f5f5f7' }}>
+                      {c.company}
                     </span>
                   </div>
 
-                  <div style={{ fontSize: '0.74rem', color: '#d1d1d6', fontWeight: '400', marginBottom: '4px' }}>
-                    {c.role}
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.68rem', color: '#86868b' }}>
-                    <span>📍 {c.location.split(',')[0]}</span>
-                    <span style={{ color: '#30d158', fontWeight: '500' }}>
-                      {c.stipend}
-                    </span>
-                  </div>
+                  <span style={{
+                    fontSize: '0.68rem',
+                    padding: '2px 7px',
+                    borderRadius: '980px',
+                    background: c.match_score >= 90 ? 'rgba(48, 209, 88, 0.14)' : c.match_score >= 80 ? 'rgba(41, 151, 255, 0.14)' : 'rgba(255, 159, 10, 0.14)',
+                    color: c.match_score >= 90 ? '#30d158' : c.match_score >= 80 ? '#2997ff' : '#ff9f0a',
+                    fontWeight: '600'
+                  }}>
+                    {c.match_score}%
+                  </span>
                 </div>
-              );
-            })}
 
-            {filteredList.length === 0 && (
-              <div style={{ textAlign: 'center', color: '#86868b', fontSize: '0.78rem', padding: '40px 10px', lineHeight: 1.5 }}>
-                <div>
-                  {internships.length === 0
-                    ? 'No approved roles in the pipeline yet. Roles scouted by AI will appear on this map once approved in the Admin Dashboard.'
-                    : 'No companies match current filters.'}
+                <div style={{ fontSize: '0.74rem', color: '#d1d1d6', fontWeight: '500' }}>
+                  {c.role}
                 </div>
-                {onRetry && (
-                  <button
-                    onClick={onRetry}
-                    className="btn-primary"
-                    disabled={isRetrying}
-                    style={{ marginTop: '12px', padding: '6px 14px', fontSize: '0.74rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                  >
-                    <RotateCw size={12} className={isRetrying ? 'spin-anim' : ''} />
-                    <span>{isRetrying ? 'Checking Pipeline...' : 'Retry / Sync Pipeline'}</span>
-                  </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.68rem', color: '#86868b' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                    <MapPin size={10} color="#86868b" />
+                    <span>{c.location.split(',')[0]}</span>
+                  </span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                    <Briefcase size={10} color="#2997ff" />
+                    <span style={{ color: '#2997ff', fontWeight: '500' }}>{c.work_mode}</span>
+                  </span>
+                  <span style={{ color: '#30d158', fontWeight: '500' }}>
+                    {c.stipend}
+                  </span>
+                </div>
+
+                {c.required_skills && c.required_skills.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', marginTop: '2px' }}>
+                    {c.required_skills.slice(0, 3).map(skill => (
+                      <span key={skill} style={{
+                        fontSize: '0.62rem',
+                        padding: '1px 5px',
+                        borderRadius: '4px',
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        color: '#a1a1a6'
+                      }}>
+                        {skill}
+                      </span>
+                    ))}
+                    {c.required_skills.length > 3 && (
+                      <span style={{ fontSize: '0.62rem', color: '#636366' }}>
+                        +{c.required_skills.length - 3}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
+            );
+          })}
+
+          {filteredList.length === 0 && (
+            <div style={{ textAlign: 'center', color: '#86868b', fontSize: '0.76rem', padding: '40px 14px', lineHeight: 1.5 }}>
+              <div>
+                {internships.length === 0
+                  ? 'No approved roles in the pipeline yet. Roles scouted by AI will appear on this map once approved in the Dashboard.'
+                  : 'No companies match current filters.'}
+              </div>
+              {onRetry && (
+                <button
+                  onClick={onRetry}
+                  className="btn-primary"
+                  disabled={isRetrying}
+                  style={{ marginTop: '12px', padding: '5px 12px', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <RotateCw size={11} className={isRetrying ? 'spin-anim' : ''} />
+                  <span>{isRetrying ? 'Checking...' : 'Retry Pipeline'}</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Right Side: Leaflet Interactive Map Viewport */}
-        <div className="glass-panel map-viewport-col" style={{ position: 'relative', overflow: 'hidden', height: '100%', minHeight: '520px' }}>
-          <div
-            ref={mapContainerRef}
-            style={{
-              width: '100%',
-              height: '100%',
-              minHeight: '520px',
-              borderRadius: '16px'
-            }}
-          />
+      </aside>
 
-          {/* Quick Map Legend Overlay — Apple Frosted Glass Pill */}
-          <div style={{
+      {/* 3. Right Main Area: Interactive Full-Height User Map */}
+      <main className="company-map-main">
+        
+        {/* Leaflet Canvas */}
+        <div
+          ref={mapContainerRef}
+          className="company-map-canvas"
+        />
+
+        {/* Floating Reset View to Malaysia Button */}
+        <button
+          onClick={resetToMalaysia}
+          title="Reset map view to whole Malaysia"
+          style={{
             position: 'absolute',
-            bottom: '16px',
-            left: '16px',
+            top: '16px',
+            right: '16px',
             zIndex: 1000,
-            background: 'rgba(24, 24, 27, 0.75)',
+            background: 'rgba(24, 24, 27, 0.85)',
             backdropFilter: 'blur(20px)',
             WebkitBackdropFilter: 'blur(20px)',
             border: '1px solid var(--border-color)',
             borderRadius: '980px',
-            padding: '6px 14px',
+            padding: '6px 12px',
             display: 'flex',
             alignItems: 'center',
-            gap: '12px',
-            fontSize: '0.7rem',
-            color: '#a1a1a6'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#30d158', display: 'inline-block' }} />
-              <span>90%+ Fit</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#2997ff', display: 'inline-block' }} />
-              <span>80–89%</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ff9f0a', display: 'inline-block' }} />
-              <span>&lt;80%</span>
-            </div>
-          </div>
+            gap: '6px',
+            fontSize: '0.72rem',
+            color: '#f5f5f7',
+            cursor: 'pointer',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <Compass size={13} color="#2997ff" />
+          <span>Reset to Malaysia</span>
+        </button>
 
+        {/* Floating Map Legend Overlay — Apple Frosted Glass Pill */}
+        <div style={{
+          position: 'absolute',
+          bottom: '16px',
+          left: '16px',
+          zIndex: 1000,
+          background: 'rgba(24, 24, 27, 0.85)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid var(--border-color)',
+          borderRadius: '980px',
+          padding: '6px 14px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          fontSize: '0.7rem',
+          color: '#a1a1a6',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#30d158', display: 'inline-block' }} />
+            <span>90%+ Fit</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#2997ff', display: 'inline-block' }} />
+            <span>80–89%</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#ff9f0a', display: 'inline-block' }} />
+            <span>&lt;80%</span>
+          </div>
         </div>
 
-      </div>
+      </main>
 
     </div>
   );

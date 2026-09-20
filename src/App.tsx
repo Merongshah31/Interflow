@@ -421,7 +421,7 @@ export const App: React.FC = () => {
         />
 
         {/* Content Body */}
-        <main className="content-body">
+        <main className={`content-body ${activeTab === 'map' ? 'content-body-map' : ''}`}>
           {activeTab === 'pipeline' && (
             <PipelineTable
               internships={internships}
