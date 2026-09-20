@@ -211,40 +211,53 @@ export const App: React.FC = () => {
     if (newStatus === 'Applied') {
       const target = internships.find(item => item.id === id);
       if (target) {
-        fetch(`${API_BASE_URL}/api/calendar/sync-deadline`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(currentUser?.user_id ? { 'X-User-Id': currentUser.user_id } : {})
-          },
-          body: JSON.stringify({
-            company: target.company,
-            role: target.role,
-            deadline: target.deadline,
-            job_url: target.jobUrl,
-            location: target.location,
-            salary: target.salary,
-            user_id: currentUser?.user_id
-          })
-        })
-          .then(res => res.json())
-          .then(data => {
-            if (data.success) {
-              setToast({
-                type: 'success',
-                message: `📅 ${target.company} deadline synced to Google Calendar!`,
-                link: data.html_link
-              });
-            } else if (data.html_link) {
-              setToast({
-                type: 'info',
-                message: `Google Workspace not connected. Click to add to Google Calendar.`,
-                link: data.html_link
-              });
-            }
-          })
-          .catch(() => {});
+        void handleSyncCalendar(target);
       }
+    }
+  };
+
+  const handleSyncCalendar = async (target: Internship) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/calendar/sync-deadline`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(currentUser?.user_id ? { 'X-User-Id': currentUser.user_id } : {})
+        },
+        body: JSON.stringify({
+          company: target.company,
+          role: target.role,
+          deadline: target.deadline,
+          job_url: target.jobUrl,
+          location: target.location,
+          salary: target.salary,
+          user_id: currentUser?.user_id
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setToast({
+          type: 'success',
+          message: `📅 ${target.company} deadline synced to Google Calendar!`,
+          link: data.html_link
+        });
+      } else if (data.html_link) {
+        setToast({
+          type: 'info',
+          message: `Google Workspace not connected. Click to add to Google Calendar.`,
+          link: data.html_link
+        });
+      } else {
+        setToast({
+          type: 'error',
+          message: data.message || 'Failed to sync deadline to Google Calendar.'
+        });
+      }
+    } catch {
+      setToast({
+        type: 'error',
+        message: 'Network error syncing deadline to Google Calendar.'
+      });
     }
   };
 
@@ -501,6 +514,7 @@ export const App: React.FC = () => {
               isRetrying={isRetrying}
               lastSyncedAt={lastSyncedAt}
               onUpdateContactEmail={handleUpdateContactEmail}
+              onSyncCalendar={handleSyncCalendar}
             />
           )}
 

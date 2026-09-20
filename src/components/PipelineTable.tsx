@@ -62,6 +62,7 @@ interface PipelineTableProps {
   isRetrying?: boolean;
   lastSyncedAt?: Date;
   onUpdateContactEmail?: (id: string, email: string) => Promise<void>;
+  onSyncCalendar?: (internship: Internship) => void;
 }
 
 const formatRelativeTime = (isoString?: string): string => {
@@ -219,7 +220,8 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
   onRetry,
   isRetrying = false,
   lastSyncedAt,
-  onUpdateContactEmail
+  onUpdateContactEmail,
+  onSyncCalendar
 }) => {
   // Filter States
   const [searchTerm, setSearchTerm] = useState('');
@@ -894,7 +896,12 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
                       <div className="mobile-card-stipend">
                         {item.salary}
                       </div>
-                      <div className="mobile-card-deadline">
+                      <div
+                        className="mobile-card-deadline"
+                        style={onSyncCalendar ? { cursor: 'pointer' } : undefined}
+                        title={onSyncCalendar ? 'Click to sync deadline to Google Calendar' : undefined}
+                        onClick={onSyncCalendar ? (e) => { e.stopPropagation(); onSyncCalendar(item); } : undefined}
+                      >
                         <Calendar size={11} />
                         <span>{formatDeadlineDisplay(item.deadline).isRolling ? 'Open / Rolling' : `Deadline: ${formatDeadlineDisplay(item.deadline).text}`}</span>
                       </div>
@@ -1356,7 +1363,11 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
                       {(() => {
                         const dl = formatDeadlineDisplay(item.deadline);
                         return (
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <div
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: onSyncCalendar ? 'pointer' : 'default' }}
+                            title={onSyncCalendar ? 'Click to sync deadline to Google Calendar' : undefined}
+                            onClick={onSyncCalendar ? (e) => { e.stopPropagation(); onSyncCalendar(item); } : undefined}
+                          >
                             <Calendar size={12} color={dl.isRolling ? '#6e6e73' : '#2997ff'} />
                             {dl.isRolling ? (
                               <span style={{
@@ -2079,6 +2090,31 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
                       <Mail size={12} />
                       <span>Draft Outreach</span>
                     </button>
+                    {onSyncCalendar && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSyncCalendar(selectedRole);
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          background: 'rgba(52, 199, 89, 0.15)',
+                          border: '1px solid rgba(52, 199, 89, 0.35)',
+                          color: '#34c759',
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          fontSize: '0.74rem',
+                          fontWeight: '500',
+                          cursor: 'pointer'
+                        }}
+                        title="Add application deadline reminder to your Google Calendar"
+                      >
+                        <Calendar size={12} />
+                        <span>Sync Calendar</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
