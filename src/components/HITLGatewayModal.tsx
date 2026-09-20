@@ -38,7 +38,7 @@ interface HITLGatewayModalProps {
 
 export const HITLGatewayModal: React.FC<HITLGatewayModalProps> = ({
   pendingActions,
-  onApprove,
+  onApprove: _onApprove,
   onReject,
   onClose,
   isGoogleConnected = false,
@@ -325,7 +325,7 @@ export const HITLGatewayModal: React.FC<HITLGatewayModalProps> = ({
               </span>
             </div>
 
-            {/* Decision Buttons — Apple Action Buttons */}
+            {/* Decision Buttons — Apple Action Buttons (Execution approval disabled & hidden) */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
               <button 
                 onClick={() => onReject(currentAction.actionId)}
@@ -333,19 +333,6 @@ export const HITLGatewayModal: React.FC<HITLGatewayModalProps> = ({
               >
                 <XCircle size={14} />
                 <span>Dismiss</span>
-              </button>
-
-              <button 
-                onClick={() => onApprove(currentAction.actionId, { delivery_mode: 'draft', body: editedBody })}
-                className="btn-primary"
-                style={{ background: '#0071e3', color: '#ffffff', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-              >
-                <FileEdit size={14} />
-                <span>
-                  {currentAction.actionType === 'SEND_EMAIL'
-                    ? 'Save as Gmail Draft' 
-                    : 'Approve Action'}
-                </span>
               </button>
             </div>
 

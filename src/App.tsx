@@ -12,7 +12,6 @@ import { AuthGate } from './components/AuthGate';
 import type { UserProfile } from './components/AuthGate';
 import { ProfileEditModal } from './components/ProfileEditModal';
 import { BottomNav } from './components/BottomNav';
-import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { API_BASE_URL } from './config';
 
 const INITIAL_INTERNSHIPS: Internship[] = [];
@@ -468,9 +467,6 @@ export const App: React.FC = () => {
             />
           )}
         </main>
-
-        {/* PWA Add to Home Screen Banner */}
-        <PWAInstallPrompt />
 
         {/* Mobile Bottom Navigation Bar (Active on screen width <= 768px) */}
         <BottomNav

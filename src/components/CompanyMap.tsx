@@ -171,7 +171,6 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
   }, [internships]);
 
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
-  const [mobileTab, setMobileTab] = useState<'map' | 'list'>('map');
 
   // Filters — default minScore to 0 so ALL approved internships display on map
   const [searchQuery, setSearchQuery] = useState('');
@@ -379,7 +378,6 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
 
   const handleSelectCompanyFromList = (c: MapCompanyLocation) => {
     setSelectedCompanyId(c.id);
-    setMobileTab('map');
     const map = mapInstanceRef.current;
     if (map) {
       setTimeout(() => {
@@ -624,36 +622,11 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
 
       </div>
 
-      {/* Mobile Segmented View Switcher */}
-      <div className="company-map-mobile-toggle">
-        <div className="view-mode-toggle" style={{ width: '100%', justifyContent: 'center' }}>
-          <button
-            type="button"
-            onClick={() => {
-              setMobileTab('map');
-              setTimeout(() => mapInstanceRef.current?.invalidateSize(), 80);
-            }}
-            className={`view-mode-btn ${mobileTab === 'map' ? 'active' : ''}`}
-            style={{ flex: 1, justifyContent: 'center', padding: '6px' }}
-          >
-            <span>Map View</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setMobileTab('list')}
-            className={`view-mode-btn ${mobileTab === 'list' ? 'active' : ''}`}
-            style={{ flex: 1, justifyContent: 'center', padding: '6px' }}
-          >
-            <span>Tech Hubs ({filteredList.length})</span>
-          </button>
-        </div>
-      </div>
-
       {/* Main Map Viewport & Drawer Layout */}
       <div className="company-map-layout">
         
         {/* Left Side: Company Quick Navigation List */}
-        <div className={`glass-panel map-list-col ${mobileTab === 'list' ? 'mobile-visible' : 'mobile-hidden'}`} style={{ padding: '16px', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+        <div className="glass-panel map-list-col" style={{ padding: '16px', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#f5f5f7' }}>
               Malaysian Tech Hubs ({filteredList.length})
@@ -751,12 +724,13 @@ export const CompanyMap: React.FC<CompanyMapProps> = ({
         </div>
 
         {/* Right Side: Leaflet Interactive Map Viewport */}
-        <div className={`glass-panel map-viewport-col ${mobileTab === 'map' ? 'mobile-visible' : 'mobile-hidden'}`} style={{ position: 'relative', overflow: 'hidden', height: '100%' }}>
+        <div className="glass-panel map-viewport-col" style={{ position: 'relative', overflow: 'hidden', height: '100%', minHeight: '520px' }}>
           <div
             ref={mapContainerRef}
             style={{
               width: '100%',
               height: '100%',
+              minHeight: '520px',
               borderRadius: '16px'
             }}
           />

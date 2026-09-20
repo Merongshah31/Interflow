@@ -1134,9 +1134,7 @@ body {
   grid-template-columns: minmax(280px, 320px) 1fr;
   gap: 16px;
   height: 600px;
-}
-.company-map-mobile-toggle {
-  display: none;
+  min-height: 540px;
 }
 
 /* Leaflet Map on Mobile */
@@ -1145,29 +1143,19 @@ body {
 }
 
 @media (max-width: 768px) {
-  .company-map-mobile-toggle {
-    display: flex;
-    width: 100%;
-    margin-bottom: 2px;
-  }
   .company-map-layout {
     display: flex;
-    flex-direction: column;
+    flex-direction: column-reverse;
     height: auto;
-    gap: 12px;
+    min-height: auto;
+    gap: 14px;
   }
   .map-list-col {
-    height: 60vh !important;
+    height: 360px !important;
   }
   .map-viewport-col {
-    height: 55vh !important;
-    min-height: 380px;
-  }
-  .mobile-hidden {
-    display: none !important;
-  }
-  .mobile-visible {
-    display: flex !important;
+    height: 480px !important;
+    min-height: 480px !important;
   }
 
   /* HITL Modal Responsive Grid */

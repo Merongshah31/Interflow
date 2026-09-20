@@ -116,6 +116,61 @@ const ALL_STATUSES: Internship['status'][] = [
 const ALL_WORK_MODES: WorkMode[] = ['On-site', 'Hybrid', 'Remote'];
 const ALL_SOURCES: RoleSource[] = ['JobStreet', 'Hiredly', 'LinkedIn', 'Glassdoor', 'Maukerja', 'Indeed', 'MyFutureJobs', 'Tech in Asia', 'NodeFlair', 'Company Portal'];
 
+const normalizeMalaysianRegion = (location: string = '', company: string = ''): string => {
+  const text = `${location} ${company}`.toLowerCase();
+
+  // 1. Kedah (Kulim, Alor Setar, Sungai Petani, KHTP)
+  if (text.includes('kedah') || text.includes('kulim') || text.includes('khtp') || text.includes('alor setar') || text.includes('sungai petani')) {
+    return 'Kedah';
+  }
+  // 2. Penang (Bayan Lepas, Batu Kawan, George Town, Butterworth, Seberang Perai)
+  if (text.includes('penang') || text.includes('pulau pinang') || text.includes('bayan lepas') || text.includes('batu kawan') || text.includes('george town') || text.includes('georgetown') || text.includes('butterworth') || text.includes('seberang')) {
+    return 'Penang';
+  }
+  // 3. Perak (Ipoh, Taiping, Kampar)
+  if (text.includes('perak') || text.includes('ipoh') || text.includes('taiping') || text.includes('kampar')) {
+    return 'Perak';
+  }
+  // 4. Kuala Lumpur (KL, KLCC, Bangsar, Bangsar South, Mid Valley, Mont Kiara, Bukit Bintang, Cheras, etc.)
+  if (text.includes('kuala lumpur') || text.includes('klcc') || text.includes('bangsar') || text.includes('mid valley') || text.includes('mont kiara') || text.includes('bukit bintang') || text.includes('federal territory of kuala lumpur') || text.includes('cheras') || text.includes('kerinchi') || /\bkl\b/i.test(text)) {
+    return 'Kuala Lumpur';
+  }
+  // 5. Selangor (Petaling Jaya, PJ, Shah Alam, Cyberjaya, Subang, Sunway, Damansara, Puchong, Klang, Sepang, Bandar Utama)
+  if (text.includes('selangor') || text.includes('petaling') || text.includes('pj') || text.includes('shah alam') || text.includes('cyberjaya') || text.includes('subang') || text.includes('sunway') || text.includes('damansara') || text.includes('puchong') || text.includes('klang') || text.includes('sepang') || text.includes('bandar utama')) {
+    return 'Selangor';
+  }
+  // 6. Johor (Johor Bahru, JB, Iskandar, Nusajaya, Medini, Senai, Skudai)
+  if (text.includes('johor') || text.includes('jb') || text.includes('iskandar') || text.includes('nusajaya') || text.includes('medini') || text.includes('senai') || text.includes('skudai')) {
+    return 'Johor';
+  }
+  // 7. Melaka
+  if (text.includes('melaka') || text.includes('malacca')) {
+    return 'Melaka';
+  }
+  // 8. Putrajaya
+  if (text.includes('putrajaya')) {
+    return 'Putrajaya';
+  }
+  // 9. Negeri Sembilan
+  if (text.includes('negeri sembilan') || text.includes('seremban') || text.includes('nilai')) {
+    return 'Negeri Sembilan';
+  }
+  // 10. Pahang
+  if (text.includes('pahang') || text.includes('kuantan')) {
+    return 'Pahang';
+  }
+  // 11. Sarawak
+  if (text.includes('sarawak') || text.includes('kuching') || text.includes('miri')) {
+    return 'Sarawak';
+  }
+  // 12. Sabah
+  if (text.includes('sabah') || text.includes('kota kinabalu')) {
+    return 'Sabah';
+  }
+
+  return 'Kuala Lumpur';
+};
+
 export const PipelineTable: React.FC<PipelineTableProps> = ({
   internships,
   onTriggerOutreach,
@@ -220,30 +275,30 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Dynamically derive unique primary locations/places for filter dropdown
-  const availableLocations = React.useMemo(() => {
-    const locSet = new Set<string>();
+  // Dynamically derive unique normalized Malaysian regions for filter dropdown
+  const availableRegions = React.useMemo(() => {
+    const regSet = new Set<string>();
     internships.forEach(item => {
-      if (item.location) {
-        const primary = item.location.split(',')[0].trim();
-        if (primary) locSet.add(primary);
-      }
+      const reg = normalizeMalaysianRegion(item.location, item.company);
+      if (reg) regSet.add(reg);
     });
-    return Array.from(locSet).sort((a, b) => a.localeCompare(b));
+    return Array.from(regSet).sort((a, b) => a.localeCompare(b));
   }, [internships]);
 
   // Multi-criteria Filtering
   const filtered = internships.filter(item => {
+    const itemRegion = normalizeMalaysianRegion(item.location, item.company);
     const matchesSearch =
       item.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (item.resource && item.resource.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (item.location && item.location.toLowerCase().includes(searchTerm.toLowerCase()));
+      (item.location && item.location.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      itemRegion.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus = statusFilter === 'All' || item.status === statusFilter;
     const matchesWorkMode = workModeFilter === 'All' || item.workMode === workModeFilter;
     const matchesSource = sourceFilter === 'All' || item.resource === sourceFilter;
-    const matchesLocation = locationFilter === 'All' || (item.location && item.location.toLowerCase().includes(locationFilter.toLowerCase()));
+    const matchesLocation = locationFilter === 'All' || itemRegion.toLowerCase() === locationFilter.toLowerCase();
 
     return matchesSearch && matchesStatus && matchesWorkMode && matchesSource && matchesLocation;
   });
@@ -261,9 +316,9 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
     return [...filtered].sort((a, b) => {
       let cmp = 0;
       if (sortBy === 'location') {
-        const locA = (a.location || '').toLowerCase();
-        const locB = (b.location || '').toLowerCase();
-        cmp = locA.localeCompare(locB);
+        const regA = normalizeMalaysianRegion(a.location, a.company);
+        const regB = normalizeMalaysianRegion(b.location, b.company);
+        cmp = regA.localeCompare(regB);
       } else if (sortBy === 'company') {
         cmp = (a.company || '').localeCompare(b.company || '');
       } else if (sortBy === 'role') {
@@ -383,10 +438,6 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
     setNewContactEmail('');
   };
 
-  const handleApplyClick = (item: Internship) => {
-    onTriggerOutreach(item);
-  };
-
   const hasActiveFilters = statusFilter !== 'All' || workModeFilter !== 'All' || sourceFilter !== 'All' || locationFilter !== 'All' || sortBy !== 'default' || searchTerm !== '';
 
   return (
@@ -503,10 +554,10 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
             </div>
           </div>
 
-          {/* Location / Place Dropdown Filter */}
+          {/* Region Dropdown Filter */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <MapPin size={12} color={locationFilter !== 'All' ? '#2997ff' : '#86868b'} />
-            <span style={{ fontSize: '0.72rem', color: locationFilter !== 'All' ? '#2997ff' : '#86868b', fontWeight: '500' }}>Place:</span>
+            <span style={{ fontSize: '0.72rem', color: locationFilter !== 'All' ? '#2997ff' : '#86868b', fontWeight: '500' }}>Region:</span>
             <select
               value={locationFilter}
               onChange={e => setLocationFilter(e.target.value)}
@@ -521,9 +572,9 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
                 cursor: 'pointer'
               }}
             >
-              <option value="All" style={{ background: '#1c1c1e', color: '#fff' }}>All Places / Hubs</option>
-              {availableLocations.map(loc => (
-                <option key={loc} value={loc} style={{ background: '#1c1c1e', color: '#fff' }}>{loc}</option>
+              <option value="All" style={{ background: '#1c1c1e', color: '#fff' }}>All Regions</option>
+              {availableRegions.map(reg => (
+                <option key={reg} value={reg} style={{ background: '#1c1c1e', color: '#fff' }}>{reg}</option>
               ))}
             </select>
           </div>
@@ -557,8 +608,8 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
               }}
             >
               <option value="default" style={{ background: '#1c1c1e', color: '#fff' }}>Default Order</option>
-              <option value="location-asc" style={{ background: '#1c1c1e', color: '#fff' }}>📍 Place / Location (A → Z)</option>
-              <option value="location-desc" style={{ background: '#1c1c1e', color: '#fff' }}>📍 Place / Location (Z → A)</option>
+              <option value="location-asc" style={{ background: '#1c1c1e', color: '#fff' }}>📍 Region (A → Z)</option>
+              <option value="location-desc" style={{ background: '#1c1c1e', color: '#fff' }}>📍 Region (Z → A)</option>
               <option value="company-asc" style={{ background: '#1c1c1e', color: '#fff' }}>Company (A → Z)</option>
               <option value="company-desc" style={{ background: '#1c1c1e', color: '#fff' }}>Company (Z → A)</option>
               <option value="role-asc" style={{ background: '#1c1c1e', color: '#fff' }}>Role (A → Z)</option>
@@ -765,7 +816,12 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
                           <div className="mobile-card-company-name">{item.company}</div>
                           <div className="mobile-card-location">
                             <MapPin size={11} color="#86868b" />
-                            <span>{item.location ? item.location.split(',')[0] : 'Malaysia'}</span>
+                            <span title={item.location || 'Malaysia'}>
+                              {normalizeMalaysianRegion(item.location, item.company)}
+                              {item.location && item.location.split(',')[0].trim().toLowerCase() !== normalizeMalaysianRegion(item.location, item.company).toLowerCase() && (
+                                <span style={{ opacity: 0.65, marginLeft: '4px' }}>• {item.location.split(',')[0].trim()}</span>
+                              )}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -888,12 +944,17 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <button
                           type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleApplyClick(item);
-                          }}
+                          disabled
                           className="btn-action-outline"
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '5px 12px' }}
+                          title="Apply action disabled"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '5px 12px',
+                            opacity: 0.45,
+                            cursor: 'not-allowed'
+                          }}
                         >
                           <span>Apply</span>
                           <ExternalLink size={11} />
@@ -940,7 +1001,7 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
                 </th>
                 <th
                   onClick={() => handleSort('location')}
-                  title="Click to sort by Place / Location (A-Z / Z-A)"
+                  title="Click to sort by Region (A-Z / Z-A)"
                   style={{
                     padding: '11px 16px',
                     fontWeight: '500',
@@ -955,7 +1016,7 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
                 >
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                     <MapPin size={12} color={sortBy === 'location' ? '#2997ff' : '#64d2ff'} />
-                    <span>Place / Location</span>
+                    <span>Region</span>
                     {sortBy === 'location' ? (
                       sortDirection === 'asc' ? <ArrowUp size={11} color="#2997ff" /> : <ArrowDown size={11} color="#2997ff" />
                     ) : (
@@ -1047,13 +1108,16 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
                       <span title={item.description || 'Description unavailable from source'}>{item.role}</span>
                     </td>
 
-                    {/* 2.5 Place / Location */}
+                    {/* 2.5 Region */}
                     <td style={{ padding: '12px 16px', color: '#d1d1d6', fontSize: '0.78rem' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                         <MapPin size={12} color={sortBy === 'location' ? '#2997ff' : '#86868b'} style={{ flexShrink: 0 }} />
                         <span style={{ fontWeight: sortBy === 'location' ? '600' : '400', color: sortBy === 'location' ? '#64d2ff' : '#d1d1d6' }} title={item.location || 'Malaysia'}>
-                          {item.location || 'Malaysia'}
+                          {normalizeMalaysianRegion(item.location, item.company)}
                         </span>
+                        {item.location && item.location.split(',')[0].trim().toLowerCase() !== normalizeMalaysianRegion(item.location, item.company).toLowerCase() && (
+                          <span style={{ fontSize: '0.68rem', color: '#86868b' }}>({item.location.split(',')[0].trim()})</span>
+                        )}
                       </div>
                     </td>
 
@@ -1262,15 +1326,15 @@ export const PipelineTable: React.FC<PipelineTableProps> = ({
                     <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleApplyClick(item);
-                          }}
+                          disabled
                           className="btn-action-outline"
+                          title="Apply action disabled"
                           style={{
-                            background: item.status === 'Not Started' ? 'rgba(0, 113, 227, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                            borderColor: item.status === 'Not Started' ? 'rgba(41, 151, 255, 0.35)' : 'rgba(255, 255, 255, 0.1)',
-                            color: item.status === 'Not Started' ? '#2997ff' : '#f5f5f7',
+                            background: 'rgba(255, 255, 255, 0.03)',
+                            borderColor: 'rgba(255, 255, 255, 0.08)',
+                            color: '#86868b',
+                            opacity: 0.45,
+                            cursor: 'not-allowed',
                             gap: '5px',
                             padding: '4px 9px',
                             fontSize: '0.74rem'
